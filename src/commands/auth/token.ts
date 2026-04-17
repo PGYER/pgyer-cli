@@ -9,16 +9,13 @@ export function handleAuthToken(): void {
   const config = loadConfig();
 
   if (!config.apiKey) {
-    if (isHuman()) {
-      logger.error('Not logged in');
-    } else {
-      logger.json({ error: 'not_logged_in' });
-    }
+    // Error output should be plain text with "Error: " prefix
+    logger.error('Not logged in');
     process.exit(1);
   }
 
   if (isHuman()) {
-    logger.text(`Token: ${config.apiKey}`);
+    logger.text(`API Token: ${config.apiKey}`);
   } else {
     logger.json({ token: config.apiKey });
   }

@@ -19,10 +19,14 @@
 
 ```bash
 # 默认
-{"success":true,"user":"test@example.com"}
+{
+  "success": true,
+  "user": "username",
+  "ukey": "<uKey>"
+}
 
 # --human
-✔ Login successful! Logged in as test@example.com
+✔ Login successful! Logged in as username <uKey>
 ```
 
 ### `pgyer auth logout`
@@ -33,7 +37,9 @@
 
 ```bash
 # 默认
-{"success":true}
+{
+  "success":true
+}
 
 # --human
 ✔ Logged out successfully
@@ -47,10 +53,19 @@
 
 ```bash
 # 已登录
-{"loggedIn":true,"user":"test@example.com"}
+{
+  "loggedIn":true,
+  "user":"username"
+}
 
 # 未登录
-{"loggedIn":false}
+{
+  "loggedIn":false
+}
+
+# --human
+✔ Logged in as username <uKey>
+✔ Logged in via API
 ```
 
 ### `pgyer auth token`
@@ -61,11 +76,12 @@
 
 ```bash
 # 默认
-{"token":"xxx","ukey":"yyy"}
+{
+  "token":"xxx"
+}
 
 # --human
 API Token: xxx
-User Key: yyy
 ```
 
 ---
@@ -112,6 +128,7 @@ App: MyApp (com.example.app)
 删除应用（需确认）。
 
 **选项**:
+
 - `--force` / `-f` - 跳过确认直接删除
 
 **输出**:
@@ -133,9 +150,11 @@ App: MyApp (com.example.app)
 上传应用安装包。
 
 **参数**:
+
 - `<file>` - IPA 或 APK 文件路径
 
 **选项**:
+
 - `--app-key <key>` - 指定应用（可选，不指定则自动匹配）
 - `--build-update-description <desc>` - 版本更新说明
 - `--build-install-type <type>` - 安装类型: 1=公开, 2=密码, 3=邀请

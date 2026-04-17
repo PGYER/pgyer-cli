@@ -2,7 +2,7 @@ import * as http from 'http';
 import * as net from 'net';
 import open from 'open';
 import { saveConfig, loadConfig } from '../../core/config';
-import { createLogger } from '../../utils/logger';
+import { createLogger, isHuman } from '../../utils/logger';
 import { createSpinner } from '../../utils/spinner';
 
 const DEFAULT_PORT = 3456;
@@ -147,9 +147,12 @@ export async function handleAuthLogin(): Promise<void> {
       name,
     });
 
-    spinner.succeed('Login successful');
+    spinner.succeed(`Login successful! Logged in as ${name} <${ukey}>`);
 
-    logger.json({ success: true, ukey, name });
+    // Only output JSON in non-human mode
+    if (!isHuman()) {
+      logger.json({ success: true, user: name, ukey });
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Login failed';
     logger.error(message);

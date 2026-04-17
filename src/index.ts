@@ -34,10 +34,22 @@ function createCLI() {
 async function main() {
   const cli = createCLI();
 
-  // Set human mode BEFORE parsing (check argv directly)
-  const hasHumanFlag = process.argv.includes('-H') ||
-    process.argv.includes('--human');
-  const isHumanMode = hasHumanFlag || process.stdout.isTTY;
+  // Determine output mode BEFORE parsing
+  // Priority: --human > --json > TTY detection
+  const hasHumanFlag = process.argv.includes('-H') || process.argv.includes('--human');
+  const hasJsonFlag = process.argv.includes('--json');
+
+  let isHumanMode: boolean;
+  if (hasHumanFlag) {
+    // --human takes highest priority
+    isHumanMode = true;
+  } else if (hasJsonFlag) {
+    // --json forces JSON output
+    isHumanMode = false;
+  } else {
+    // Default: determine by TTY
+    isHumanMode = process.stdout.isTTY ?? false;
+  }
   setHumanMode(isHumanMode);
 
   // Register commands
