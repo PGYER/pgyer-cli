@@ -3,8 +3,7 @@
  */
 export const ENV_VARS = {
   API_KEY: 'PGYER_API_KEY',
-  OUTPUT_FORMAT: 'PGYER_OUTPUT_FORMAT',
-  API_URL: 'PGYER_API_URL',
+  OUTPUT_FORMAT: 'PGYER_OUTPUT_FORMAT'
 } as const;
 
 /**
