@@ -1,0 +1,10 @@
+# 技术设计规范
+
+本文档定义 pgyer-cli 的详细技术设计，任何代码改动前需先更新此文档。
+
+## 目录
+
+- [配置管理](./spec/config.md) - 配置来源、优先级、环境变量
+- [输出模式](./spec/output.md) - LLM 友好输出、Human 模式
+- [模块设计](./spec/modules.md) - auth、apps、upload 模块详细设计
+- [API 规范](./spec/api.md) - 网络请求封装与 API 接口
