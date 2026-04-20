@@ -157,14 +157,31 @@ App: MyApp (com.example.app)
 
 **参数**:
 
-- `<file>` - IPA 或 APK 文件路径
+- `<file>` - IPA、APK 或 HAP 文件路径
 
 **选项**:
 
 - `--app-key <key>` - 指定应用（可选，不指定则自动匹配）
 - `--build-update-description <desc>` - 版本更新说明
-- `--build-install-type <type>` - 安装类型: 1=公开, 2=密码, 3=邀请
-- `--build-password <pwd>` - 安装密码 (type=2 时必填)
+- `--password <pwd>` - 安装密码（设置安装类型为密码安装）
+- `--invite-install` - 设置安装类型为邀请安装（不能与 --password 同时使用）
+- `--pubstart <date>` - 安装有效期开始日期（格式：YYYY-MM-DD）
+- `--pubend <date>` - 安装有效期结束日期（格式：YYYY-MM-DD）
+- `--short <shortcut>` - 渠道短链接
+
+**安装类型判断逻辑**:
+
+1. 若 `--invite-install` 和 `--password` 同时使用，报错
+2. 若 `--invite-install` 存在，则为邀请安装（type=3）
+3. 若 `--password` 有值，则为密码安装（type=2）
+4. 其他情况为公开安装（type=1）
+
+**有效期校验规则**:
+
+- `--pubstart` 和 `--pubend` 必须同时存在或同时不存在
+- 若只存在其中一个，则报错
+- `--pubend` 日期必须大于 `--pubstart`
+- 满足条件时设置 `buildInstallDate=1`
 
 **输出**:
 
