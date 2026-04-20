@@ -1,58 +1,58 @@
 # @pgyer/cli
 
-PGYER 应用分发平台的命令行工具，支持应用上传、管理和账户认证。
+A command-line tool for PGYER App Distribution Platform, supporting app uploads, management, and account authentication.
 
-## 安装
+## Installation
 
 ```bash
-# 全局安装
+# Global installation
 npm install -g @pgyer/cli
 
-# 或通过 npx 直接使用
+# Or use directly via npx
 npx @pgyer/cli
 ```
 
-要求 Node.js >= 18.0.0。
+Requires Node.js >= 18.0.0.
 
-## 快速开始
+## Quick Start
 
 ```bash
-# 登录账户
+# Login to account
 pgyer auth login
 
-# 上传应用
+# Upload app
 pgyer upload ./app-release.apk
 
-# 查看应用列表
+# View app list
 pgyer apps list
 ```
 
-## 输出模式
+## Output Modes
 
-工具支持两种输出模式，适配不同使用场景。
+The tool supports two output modes, adapting to different use cases.
 
-### 自适应模式（默认）
+### Auto Mode (Default)
 
-未指定 `--human` 或 `--json` 时，工具会根据运行环境自动选择输出模式：
+When neither `--human` nor `--json` is specified, the tool automatically selects the output mode based on the runtime environment:
 
-- **终端 (TTY)** — 自动启用 Human 模式，带颜色、动画和表格
-- **管道/脚本/CI** — 自动启用 JSON 模式，纯结构化数据输出
+- **Terminal (TTY)** — Automatically enables Human mode with colors, animations and tables
+- **Pipe/Script/CI** — Automatically enables JSON mode with pure structured data output
 
 ```bash
-# 终端中直接运行 → Human 模式
+# Running directly in terminal → Human mode
 pgyer apps list
 
-# 管道中运行 → JSON 模式
+# Running in pipeline → JSON mode
 pgyer apps list | jq '.apps[0].name'
 ```
 
-### `--human` / `-H` 模式
+### `--human` / `-H` Mode
 
-强制启用人类友好输出，适合交互式使用：
+Force human-friendly output, suitable for interactive use:
 
-- 彩色文本和状态图标（`✔` `✖` `ℹ`）
-- 加载动画（spinner）
-- 表格对齐显示
+- Colored text and status icons (`✔` `✖` `ℹ`)
+- Loading animation (spinner)
+- Aligned table display
 
 ```bash
 $ pgyer apps list --human
@@ -66,13 +66,13 @@ $ pgyer auth status --human
 ✔ Logged in as username <uKey>
 ```
 
-### `--json` 模式
+### `--json` Mode
 
-强制 JSON 输出，适合脚本解析和 LLM 调用：
+Force JSON output, suitable for script parsing and LLM invocation:
 
-- 无颜色、无动画、无格式化
-- 结构化 JSON 数据输出到 stdout
-- 错误信息以 `Error:` 前缀输出到 stderr
+- No colors, no animations, no formatting
+- Structured JSON data output to stdout
+- Error messages output to stderr with `Error:` prefix
 
 ```bash
 $ pgyer apps list --json
@@ -82,17 +82,17 @@ $ pgyer auth status --json
 {"loggedIn":true,"user":"username"}
 ```
 
-### 优先级
+### Priority
 
-`--human` > `--json` > TTY 自适应
+`--human` > `--json` > TTY auto-detection
 
-同时指定 `--human` 和 `--json` 时，`--human` 优先。
+When both `--human` and `--json` are specified, `--human` takes precedence.
 
-## 命令参考
+## Command Reference
 
 ### `pgyer auth login`
 
-通过浏览器授权登录。自动启动本地回调服务器，打开浏览器完成授权后将凭证保存到配置文件。
+Login via browser authorization. Automatically starts a local callback server, opens a browser to complete authorization, and saves credentials to the config file.
 
 ```bash
 pgyer auth login
@@ -100,7 +100,7 @@ pgyer auth login
 
 ### `pgyer auth logout`
 
-清除本地存储的登录凭证，保留其他配置项。
+Clear locally stored login credentials while preserving other configuration items.
 
 ```bash
 pgyer auth logout
@@ -108,7 +108,7 @@ pgyer auth logout
 
 ### `pgyer auth status`
 
-检查当前登录状态。
+Check current login status.
 
 ```bash
 $ pgyer auth status
@@ -118,11 +118,11 @@ $ pgyer auth status --human
 ✔ Logged in as username <uKey>
 ```
 
-如果通过环境变量 `PGYER_API_KEY` 认证，会显示 "Logged in via API"。
+If authenticated via the `PGYER_API_KEY` environment variable, it will display "Logged in via API".
 
 ### `pgyer auth token`
 
-显示当前的 API Token。
+Display the current API Token.
 
 ```bash
 $ pgyer auth token
@@ -134,7 +134,7 @@ API Token: your-api-key-here
 
 ### `pgyer apps list`
 
-列出当前账户下的所有应用。
+List all apps under the current account.
 
 ```bash
 pgyer apps list
@@ -142,7 +142,7 @@ pgyer apps list
 
 ### `pgyer apps info <appKey>`
 
-查看指定应用的详细信息。
+View detailed information about a specific app.
 
 ```bash
 $ pgyer apps info abc123 --human
@@ -160,7 +160,7 @@ App: MyApp (com.example.app)
 
 ### `pgyer apps delete <appKey>`
 
-删除指定应用。Human 模式下会要求确认，使用 `--force` 跳过。
+Delete a specified app. In Human mode, it will request confirmation; use `--force` to skip.
 
 ```bash
 pgyer apps delete abc123
@@ -169,61 +169,61 @@ pgyer apps delete abc123 --force
 
 ### `pgyer upload <file>`
 
-上传 IPA、APK 或 HAP 安装包。
+Upload IPA, APK or HAP installation packages.
 
 ```bash
 pgyer upload ./app-release.apk
 ```
 
-**选项：**
+**Options:**
 
-| 选项 | 说明 |
-|------|------|
-| `--app-key <key>` | 指定目标应用（不指定则自动匹配） |
-| `--build-update-description <desc>` | 版本更新说明 |
-| `--password <pwd>` | 安装密码（设为密码安装） |
-| `--invite-install` | 设为邀请安装（不能与 `--password` 同时使用） |
-| `--pubstart <date>` | 安装有效期开始日期（YYYY-MM-DD） |
-| `--pubend <date>` | 安装有效期结束日期（YYYY-MM-DD） |
-| `--short <shortcut>` | 渠道短链接 |
+| Option | Description |
+|--------|-------------|
+| `--app-key <key>` | Specify target app (auto-match if not specified) |
+| `--build-update-description <desc>` | Version update description |
+| `--password <pwd>` | Installation password (set for password installation) |
+| `--invite-install` | Set as invite-only installation (cannot be used with `--password`) |
+| `--pubstart <date>` | Installation validity start date (YYYY-MM-DD) |
+| `--pubend <date>` | Installation validity end date (YYYY-MM-DD) |
+| `--short <shortcut>` | Channel short link |
 
-**示例：**
+**Examples:**
 
 ```bash
-# 上传并设置密码安装
+# Upload and set password installation
 pgyer upload ./app.apk --password 123456
 
-# 上传并指定有效期
+# Upload and specify validity period
 pgyer upload ./app.ipa --pubstart 2024-01-01 --pubend 2024-12-31
 
-# 上传并设置更新说明
-pgyer upload ./app.apk --build-update-description "修复了已知问题"
+# Upload and set update description
+pgyer upload ./app.apk --build-update-description "Fixed known issues"
 ```
 
-> `--pubstart` 和 `--pubend` 必须同时使用，且结束日期必须大于开始日期。
+> `--pubstart` and `--pubend` must be used together, and the end date must be greater than the start date.
 
-## 配置
+## Configuration
 
-### 优先级
+### Priority
 
-CLI 参数 > 环境变量 > 配置文件
+CLI arguments > Environment variables > Config file
 
-### 环境变量
+### Environment Variables
 
-| 变量 | 说明 |
-|------|------|
-| `PGYER_API_KEY` | API Key，可替代 `auth login` 进行认证 |
-| `PGYER_OUTPUT_FORMAT` | 输出格式，`json` 或 `text` |
+| Variable | Description |
+|----------|-------------|
+| `PGYER_API_KEY` | API Key, can be used instead of `auth login` for authentication |
+| `PGYER_OUTPUT_FORMAT` | Output format, `json` or `text` |
 
 ```bash
-# 在 CI 环境中使用环境变量认证
+# Use environment variable authentication in CI environment
 export PGYER_API_KEY=your-api-key
 pgyer upload ./app.apk
 ```
 
-### 配置文件
+### Config File
 
-路径：`~/.config/pgyer/config.json`
+Path: `~/.config/pgyer/config.json`
 
 ```json
 {
@@ -233,7 +233,7 @@ pgyer upload ./app.apk
 }
 ```
 
-配置文件权限自动设置为 `600`（仅所有者可读写）。
+Config file permissions are automatically set to `600` (readable and writable by owner only).
 
 ## License
 
