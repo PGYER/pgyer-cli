@@ -74,25 +74,45 @@ export class ApiClient {
       method: options.method,
     };
 
-    // Handle body
-    if (options.body) {
+    // Handle body for POST requests
+    if (options.method === 'POST') {
+      // Build form data with API key
+      const formParams = new URLSearchParams();
+      if (this.apiKey) {
+        formParams.append('_api_key', this.apiKey);
+      }
+      if (options.params) {
+        Object.entries(options.params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            formParams.append(key, String(value));
+          }
+        });
+      }
       if (options.body instanceof FormData) {
-        // Add API key to FormData
+        // FormData: add API key and use as-is
         if (this.apiKey) {
           options.body.append('_api_key', this.apiKey);
         }
         fetchOptions.body = options.body;
-      } else {
-        // JSON body
-        const body = { ...options.body };
-        if (this.apiKey) {
-          body._api_key = this.apiKey;
-        }
-        fetchOptions.headers = {
-          'Content-Type': 'application/json',
-        };
-        fetchOptions.body = JSON.stringify(body);
+      } else if (options.body) {
+        // JSON body: convert to form params
+        Object.entries(options.body).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            formParams.append(key, String(value));
+          }
+        });
       }
+      fetchOptions.headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      };
+      fetchOptions.body = formParams.toString();
+    } else if (options.method === 'GET' && options.params) {
+      // GET: add params to URL
+      Object.entries(options.params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          url.searchParams.append(key, String(value));
+        }
+      });
     }
 
     const response = await fetch(url.toString(), fetchOptions);

@@ -88,26 +88,42 @@ class HumanLogger implements Logger {
       console.log(pc.gray('No data'));
       return;
     }
-    // Simple table output
     const headers = Object.keys(data[0]);
     const rows = data.map(item => headers.map(h => String(item[h] ?? '')));
 
-    // Calculate column widths
+    // Get display width of a string (handles CJK characters)
+    const getDisplayWidth = (str: string): number => {
+      let width = 0;
+      for (const char of str) {
+        // CJK characters and fullwidth characters have width of 2
+        width += char.charCodeAt(0) > 127 ? 2 : 1;
+      }
+      return width;
+    };
+
+    // Pad string to display width
+    const padToWidth = (str: string, width: number): string => {
+      const currentWidth = getDisplayWidth(str);
+      const padding = width - currentWidth;
+      return str + ' '.repeat(Math.max(0, padding));
+    };
+
+    // Calculate column widths based on display width
     const widths = headers.map((h, i) =>
-      Math.max(h.length, ...rows.map(r => r[i].length))
+      Math.max(getDisplayWidth(h), ...rows.map(r => getDisplayWidth(r[i])))
     );
 
     // Print header
-    const headerRow = headers.map((h, i) => h.padEnd(widths[i])).join('  ');
-    console.log(pc.bold(headerRow));
+    const headerRow = headers.map((h, i) => pc.bold(padToWidth(h, widths[i]))).join(' │ ');
+    console.log(headerRow);
 
     // Print separator
-    const separator = widths.map(w => '-'.repeat(w)).join('  ');
+    const separator = widths.map(w => '─'.repeat(w)).join('─┼─');
     console.log(pc.gray(separator));
 
     // Print rows
     for (const row of rows) {
-      console.log(row.map((cell, i) => cell.padEnd(widths[i])).join('  '));
+      console.log(row.map((cell, i) => padToWidth(cell, widths[i])).join(' │ '));
     }
   }
 

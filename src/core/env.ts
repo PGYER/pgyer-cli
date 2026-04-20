@@ -11,23 +11,16 @@ export const ENV_VARS = {
  */
 export function parseEnvConfig(): {
   apiKey?: string;
-  apiUrl?: string;
   outputFormat?: 'json' | 'text';
 } {
   const config: {
     apiKey?: string;
-    apiUrl?: string;
     outputFormat?: 'json' | 'text';
   } = {};
 
   const apiKey = process.env[ENV_VARS.API_KEY];
   if (apiKey) {
     config.apiKey = apiKey;
-  }
-
-  const apiUrl = process.env[ENV_VARS.API_URL];
-  if (apiUrl) {
-    config.apiUrl = apiUrl;
   }
 
   const outputFormat = process.env[ENV_VARS.OUTPUT_FORMAT];

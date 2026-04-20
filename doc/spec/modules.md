@@ -96,14 +96,14 @@ API Token: xxx
 
 ```bash
 # 默认
-{"apps":[{"name":"MyApp","bundleId":"com.example.app","appKey":"abc123"}]}
+{"apps":[{"name":"MyApp","bundleId":"com.example.app","version":"1.0.0","appKey":"abc123","type":"iOS","size":12345678,"createdAt":"2024-01-01 00:00:00"}]}
 
 # --human
-┌─────────┬────────────────────┬──────────┐
-│ Name    │ Bundle ID          │ App Key  │
-├─────────┼────────────────────┼──────────┤
-│ MyApp   │ com.example.app    │ abc123   │
-└─────────┴────────────────────┴──────────┘
+┌─────────┬────────────────────┬─────────┬──────────┬────────┬─────────────────────┐
+│ Name    │ Bundle ID          │ Version │ App Key  │ Type   │ Created              │
+├─────────┼────────────────────┼─────────┼──────────┼────────┼─────────────────────┤
+│ MyApp   │ com.example.app    │ 1.0.0   │ abc123   │ iOS    │ 2024-01-01 00:00:00  │
+└─────────┴────────────────────┴─────────┴──────────┴────────┴─────────────────────┘
 ```
 
 ### `pgyer apps info <appKey>`
@@ -114,13 +114,19 @@ API Token: xxx
 
 ```bash
 # 默认
-{"name":"MyApp","bundleId":"com.example.app","appKey":"abc123","version":"1.0.0","buildCount":10}
+{"name":"MyApp","bundleId":"com.example.app","appKey":"abc123","version":"1.0.0","buildVersion":"1","type":"Android","size":"10.0 MB","shortcut":"abc","installType":"Public","createdAt":"2024-01-01 00:00:00","updatedAt":"2024-01-01 00:00:00","expiredAt":"2025-01-01 00:00:00"}
 
 # --human
 App: MyApp (com.example.app)
-  App Key:   abc123
-  Version:   1.0.0
-  Builds:    10
+  App Key:     abc123
+  Version:     1.0.0 (Build 1)
+  Platform:    Android
+  Size:        10.0 MB
+  Shortcut:    abc
+  Install:     Public
+  Created:     2024-01-01 00:00:00
+  Updated:     2024-01-01 00:00:00
+  Expires:     2025-01-01 00:00:00
 ```
 
 ### `pgyer apps delete <appKey>`

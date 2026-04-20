@@ -76,35 +76,71 @@ Error: [10001] Invalid API Key
 ### 获取 App 列表
 
 ```
-GET /apiv2/app/list
+POST /apiv2/app/listMy
+Content-Type: application/x-www-form-urlencoded
+
+Params:
+- _api_key: string (必填)
+- page: integer (选填)
 
 Response:
 {
   "code": 0,
   "message": "",
-  "data": {
-    "list": [{ "buildKey": "xxx", "buildName": "MyApp", ... }]
-  }
+  "data": [
+    {
+      "buildKey": "xxx",
+      "buildType": 1,
+      "buildFileSize": 12345678,
+      "buildName": "MyApp",
+      "buildVersion": "1.0.0",
+      "buildVersionNo": "1",
+      "buildBuildVersion": 1,
+      "buildIdentifier": "com.example.app",
+      "buildIcon": "xxx",
+      "buildCreated": "2024-01-01 00:00:00",
+      "appKey": "xxx"
+    }
+  ]
 }
 ```
 
 ### 获取 App 详情
 
 ```
-GET /apiv2/app/view
+POST /apiv2/app/view
+Content-Type: application/x-www-form-urlencoded
 
 Params:
-- _api_key: string
-- appKey: string
+- _api_key: string (必填)
+- appKey: string (必填)
+- buildKey: string (选填，指定版本)
 
 Response:
 {
   "code": 0,
+  "message": "",
   "data": {
     "buildKey": "xxx",
+    "buildType": "1",
     "buildName": "MyApp",
     "buildVersion": "1.0.0",
-    ...
+    "buildVersionNo": "1",
+    "buildBuildVersion": "1",
+    "buildIdentifier": "com.example.app",
+    "buildIcon": "xxx",
+    "buildFileSize": "12345678",
+    "buildCreated": "2024-01-01 00:00:00",
+    "buildUpdated": "2024-01-01 00:00:00",
+    "buildShortcutUrl": "abc123",
+    "buildInstallType": "1",
+    "buildPassword": "",
+    "buildDescription": "",
+    "buildUpdateDescription": "",
+    "appKey": "xxx",
+    "iconUrl": "https://...",
+    "buildQRCodeURL": "https://...",
+    "appExpiredDate": "2025-01-01 00:00:00"
   }
 }
 ```
@@ -135,16 +171,17 @@ Response:
 ### 删除 App
 
 ```
-POST /apiv2/app/delete
+POST /apiv2/app/deleteApp
+Content-Type: application/x-www-form-urlencoded
 
 Params:
-- _api_key: string
-- appKey: string
+- _api_key: string (必填)
+- appKey: string (必填)
 
 Response:
 {
   "code": 0,
-  "message": "success"
+  "message": ""
 }
 ```
 

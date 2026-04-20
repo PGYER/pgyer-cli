@@ -1,6 +1,6 @@
 import * as readline from 'readline';
 import { loadConfig, createApiClient, ApiError } from '../../core';
-import { createLogger } from '../../utils/logger';
+import { createLogger, isHuman } from '../../utils/logger';
 import { createSpinner } from '../../utils/spinner';
 
 /**
@@ -29,7 +29,7 @@ export async function handleAppsDelete(appKey: string, force: boolean): Promise<
 
   try {
     // Confirm deletion unless --force
-    if (!force && process.stdin.isTTY) {
+    if (!force && isHuman()) {
       const confirmed = await confirm(
         `Are you sure you want to delete app "${appKey}"?`
       );
@@ -45,12 +45,16 @@ export async function handleAppsDelete(appKey: string, force: boolean): Promise<
     spinner.start();
     await api.request({
       method: 'POST',
-      path: '/apiv2/app/delete',
+      path: '/apiv2/app/deleteApp',
       params: { appKey },
     });
     spinner.succeed('App deleted');
 
-    logger.json({ success: true });
+    if (isHuman()) {
+      logger.success('App deleted successfully');
+    } else {
+      logger.json({ success: true });
+    }
   } catch (error) {
     spinner.fail('Failed to delete app');
     if (error instanceof ApiError) {
