@@ -13,7 +13,7 @@ CLI 工具需要同时支持两种使用场景：
 
 - 无颜色、无动画、无格式化
 - 结构化数据输出 JSON 格式
-- 错误信息 plain text，前缀 `Error: `
+- 错误信息 plain text，前缀 `Error:`
 - 进度信息不输出或输出到 stderr
 
 **示例**:
@@ -63,8 +63,9 @@ interface Logger {
   json(data: unknown): void;      // JSON 输出
   text(message: string): void;    // 文本输出
   error(message: string): void;   // 错误输出
-  table(data: unknown[]): void;   // 表格输出 (仅 human)
+  table(data: Record<string, unknown>[]): void;   // 表格输出 (仅 human)
   success(message: string): void; // 成功提示 (仅 human)
+  info(message: string): void;    // 信息提示
 }
 
 // 全局状态
@@ -84,5 +85,7 @@ export function createLogger(): Logger {
 
 ## 选项冲突处理
 
-- `--json` 强制 JSON 输出（即使配置文件指定 text）
 - `--human` 与 `--json` 同时指定时，`--human` 优先
+- `--json` 强制 JSON 输出（即使配置文件指定 text）
+- 未指定 `--human` 或 `--json` 时，根据 `process.stdout.isTTY` 自动检测：TTY 环境默认 human 模式，非 TTY 环境默认 JSON 模式
+- 优先级：`--human` > `--json` > TTY 自动检测

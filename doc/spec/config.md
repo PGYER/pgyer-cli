@@ -42,6 +42,8 @@ interface Config {
   apiKey?: string;
   apiUrl?: string;
   outputFormat?: 'json' | 'text';
+  ukey?: string;
+  name?: string;
 }
 
 // 配置加载顺序

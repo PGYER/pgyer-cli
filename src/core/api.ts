@@ -60,15 +60,6 @@ export class ApiClient {
       params._api_key = this.apiKey;
     }
 
-    // Add params to URL for GET requests
-    if (options.method === 'GET' && params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          url.searchParams.append(key, String(value));
-        }
-      });
-    }
-
     // Build fetch options
     const fetchOptions: RequestInit = {
       method: options.method,
@@ -107,9 +98,9 @@ export class ApiClient {
         };
         fetchOptions.body = formParams.toString();
       }
-    } else if (options.method === 'GET' && options.params) {
+    } else if (options.method === 'GET') {
       // GET: add params to URL
-      Object.entries(options.params).forEach(([key, value]) => {
+      Object.entries(params).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
           url.searchParams.append(key, String(value));
         }

@@ -2,7 +2,7 @@
 
 ## 1. 项目概述
 
-基于 Node.js + TypeScript 的全局 CLI 工具，支持 `npm i -g pgyer-cli` 和 `npx pgyer-cli`。
+基于 Node.js + TypeScript 的全局 CLI 工具，支持 `npm i -g @pgyer/cli` 和 `npx @pgyer/cli`。
 
 **设计原则**：默认 LLM 友好输出（无颜色、JSON），`--human` / `-H` 启用人性化输出。
 
@@ -19,7 +19,7 @@
 - **UI**: `picocolors`, `ora` (仅 `--human` 模式)
 - **配置**: 自定义实现，存储至 `~/.config/pgyer/config.json`
 - **授权**: `open` + Node `http` (本地回调服务器)
-- **网络**: `fetch` 或 `axios` (自动注入 Token)
+- **网络**: 原生 `fetch` (自动注入 Token)
 
 ## 3. 目录结构
 
@@ -58,11 +58,11 @@ pgyer auth login/logout/status/token
 pgyer apps list/info <appKey>/delete <appKey>
 pgyer upload <file>
 
-# 全局选项: --human/-H, --json, --config <path>, --help
+# 全局选项: --human/-H, --json, --help
 ```
 
 ## 6. 核心逻辑
 
-**auth login**: 本地 HTTP 服务器 (端口 3456) → 浏览器授权 → 回调 `/callback?token=xxx&ukey=xxx` → 保存并关闭。
+**auth login**: 本地 HTTP 服务器 (端口 3456 起自动探测可用端口) → 浏览器授权 → 回调 `/?auth=<base64url>` (JSON: `{ ukey, name, apikey }`) → 保存并关闭。
 
 **构建**: `bin: {"pgyer": "./dist/index.js"}`, tsup 开启 minify + bundle。

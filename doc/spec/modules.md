@@ -9,9 +9,9 @@
 **流程**:
 
 1. 启动本地 HTTP 服务器，监听端口 3456（可配置）
-2. 调用 `open` 打开浏览器访问 `https://www.pgyer.com/account/api?cli_request=3456`
+2. 调用 `open` 打开浏览器访问 `https://www.pgyer.com/account/api?cli_auth_port=3456`
 3. 用户在浏览器中授权
-4. 浏览器重定向到 `http://localhost:3456/callback?token=xxx&ukey=xxx`
+4. 浏览器重定向到 `http://localhost:3456/?auth=<base64url>` ，`auth` 参数为 base64url 编码的 JSON：`{ "ukey": "xxx", "name": "xxx", "apikey": "xxx" }`
 5. 本地服务器解析参数，保存到配置文件
 6. 返回成功 HTML，关闭服务器
 
@@ -96,14 +96,14 @@ API Token: xxx
 
 ```bash
 # 默认
-{"apps":[{"name":"MyApp","bundleId":"com.example.app","version":"1.0.0","appKey":"abc123","type":"iOS","size":12345678,"createdAt":"2024-01-01 00:00:00"}]}
+{"apps":[{"name":"MyApp","bundleId":"com.example.app","version":"1.0.0","appKey":"abc123","type":"iOS","size":"11.8 MB","createdAt":"2024-01-01 00:00:00"}]}
 
 # --human
-┌─────────┬────────────────────┬─────────┬──────────┬────────┬─────────────────────┐
-│ Name    │ Bundle ID          │ Version │ App Key  │ Type   │ Created              │
-├─────────┼────────────────────┼─────────┼──────────┼────────┼─────────────────────┤
-│ MyApp   │ com.example.app    │ 1.0.0   │ abc123   │ iOS    │ 2024-01-01 00:00:00  │
-└─────────┴────────────────────┴─────────┴──────────┴────────┴─────────────────────┘
+┌─────────┬────────────────────┬─────────┬──────────┬────────┬─────────┬─────────────────────┐
+│ Name    │ Bundle ID          │ Version │ App Key  │ Type   │ Size    │ Created              │
+├─────────┼────────────────────┼─────────┼──────────┼────────┼─────────┼─────────────────────┤
+│ MyApp   │ com.example.app    │ 1.0.0   │ abc123   │ iOS    │ 11.8 MB │ 2024-01-01 00:00:00  │
+└─────────┴────────────────────┴─────────┴──────────┴────────┴─────────┴─────────────────────┘
 ```
 
 ### `pgyer apps info <appKey>`

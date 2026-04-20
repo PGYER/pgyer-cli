@@ -19,8 +19,7 @@ function createCLI() {
   // Global options
   cli
     .option('-H, --human', 'Enable human-friendly output')
-    .option('--json', 'Force JSON output')
-    .option('--config <path>', 'Config file path');
+    .option('--json', 'Force JSON output');
 
   // Help text
   cli.help();

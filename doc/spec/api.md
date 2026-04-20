@@ -24,17 +24,53 @@ class ApiClient {
   async request<T>(options: RequestOptions): Promise<T> {
     const url = new URL(this.baseUrl + options.path);
 
-    // 注入 _api_key
+    // 构建请求参数，注入 _api_key
+    const params = { ...options.params };
     if (this.apiKey) {
-      options.params = { ...options.params, _api_key: this.apiKey };
+      params._api_key = this.apiKey;
     }
 
-    // 构建请求
-    const response = await fetch(url, {
-      method: options.method,
-      body: options.body instanceof FormData ? options.body : JSON.stringify(options.body),
-    });
+    // GET 请求：参数附加到 URL
+    if (options.method === 'GET') {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          url.searchParams.append(key, String(value));
+        }
+      });
+    }
 
+    const fetchOptions: RequestInit = { method: options.method };
+
+    // POST 请求处理
+    if (options.method === 'POST') {
+      if (options.body instanceof FormData) {
+        // FormData: 直接添加 _api_key 到 FormData
+        if (this.apiKey) {
+          options.body.append('_api_key', this.apiKey);
+        }
+        fetchOptions.body = options.body;
+      } else {
+        // 非 FormData: 转换为 URLSearchParams (application/x-www-form-urlencoded)
+        const formParams = new URLSearchParams();
+        if (this.apiKey) {
+          formParams.append('_api_key', this.apiKey);
+        }
+        // 合并 params 和 body 到表单参数
+        for (const source of [options.params, options.body]) {
+          if (source) {
+            Object.entries(source).forEach(([key, value]) => {
+              if (value !== undefined && value !== null) {
+                formParams.append(key, String(value));
+              }
+            });
+          }
+        }
+        fetchOptions.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+        fetchOptions.body = formParams.toString();
+      }
+    }
+
+    const response = await fetch(url.toString(), fetchOptions);
     return this.handleResponse<T>(response);
   }
 
@@ -68,7 +104,7 @@ class ApiError extends Error {
 Error: [10001] Invalid API Key
 
 # --human 模式
-✖ Error: Invalid API Key (code: 10001)
+✖ Error: [10001] Invalid API Key
 ```
 
 ## API 接口
@@ -87,21 +123,23 @@ Response:
 {
   "code": 0,
   "message": "",
-  "data": [
-    {
-      "buildKey": "xxx",
-      "buildType": 1,
-      "buildFileSize": 12345678,
-      "buildName": "MyApp",
-      "buildVersion": "1.0.0",
-      "buildVersionNo": "1",
-      "buildBuildVersion": 1,
-      "buildIdentifier": "com.example.app",
-      "buildIcon": "xxx",
-      "buildCreated": "2024-01-01 00:00:00",
-      "appKey": "xxx"
-    }
-  ]
+  "data": {
+    "list": [
+      {
+        "buildKey": "xxx",
+        "buildType": "1",
+        "buildFileSize": "12345678",
+        "buildName": "MyApp",
+        "buildVersion": "1.0.0",
+        "buildVersionNo": "1",
+        "buildBuildVersion": "1",
+        "buildIdentifier": "com.example.app",
+        "buildIcon": "xxx",
+        "buildCreated": "2024-01-01 00:00:00",
+        "appKey": "xxx"
+      }
+    ]
+  }
 }
 ```
 
@@ -153,9 +191,14 @@ POST /apiv2/app/upload
 Body (multipart/form-data):
 - _api_key: string
 - file: File
+- appKey: string (optional, 指定目标应用)
 - buildUpdateDescription: string (optional)
-- buildInstallType: number (optional)
-- buildPassword: string (optional)
+- buildInstallType: number (optional, 1=公开 2=密码 3=邀请)
+- buildPassword: string (optional, buildInstallType=2 时需要)
+- buildInstallDate: string (optional, "1" 表示设置有效期)
+- buildInstallStartDate: string (optional, 格式 YYYY-MM-DD)
+- buildInstallEndDate: string (optional, 格式 YYYY-MM-DD)
+- buildChannelShortcut: string (optional, 渠道短链接)
 
 Response:
 {
@@ -185,17 +228,14 @@ Response:
 }
 ```
 
-## Token 验证
+## Token 验证（待实现）
 
-在执行需要认证的操作前，先验证 Token 是否有效：
+预留接口，后续可用于在执行需要认证的操作前验证 Token 是否有效：
 
-```typescript
-async function validateToken(): Promise<boolean> {
-  try {
-    await apiClient.request({ path: '/apiv2/user/view' });
-    return true;
-  } catch {
-    return false;
-  }
-}
+```
+POST /apiv2/user/view
+Content-Type: application/x-www-form-urlencoded
+
+Params:
+- _api_key: string (必填)
 ```
