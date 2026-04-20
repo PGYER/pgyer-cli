@@ -15,7 +15,7 @@
   "license": "MIT",
   "type": "commonjs",
   "bin": {
-    "pgyer": "./dist/index.js"
+    "pgyer": "dist/index.js"
   },
   "main": "./dist/index.js",
   "exports": {
@@ -36,7 +36,8 @@
     "prepublishOnly": "npm run build",
     "test": "node --test --import tsx test/**/*.test.ts",
     "test:interactive": "npx tsx test/run.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "publish": "npm publish --access public"
   },
   "dependencies": {
     "cac": "^6.7.14",
