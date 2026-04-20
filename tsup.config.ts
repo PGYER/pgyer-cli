@@ -6,7 +6,7 @@ export default defineConfig({
   target: 'node18',
   minify: true,
   bundle: true,
-  sourcemap: true,
+  sourcemap: false,
   dts: true,
   clean: true,
   banner: {

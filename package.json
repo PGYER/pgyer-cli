@@ -8,9 +8,10 @@
     "app",
     "distribution",
     "ipa",
-    "apk"
+    "apk",
+    "hap"
   ],
-  "author": "PGYer",
+  "author": "PGYER Team",
   "license": "MIT",
   "type": "commonjs",
   "bin": {
@@ -33,6 +34,7 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "prepublishOnly": "npm run build",
+    "test": "node --test --import tsx test/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -44,6 +46,7 @@
   "devDependencies": {
     "@types/node": "^22.14.0",
     "tsup": "^8.4.0",
+    "tsx": "^4.7.0",
     "typescript": "^5.8.3"
   }
 }
