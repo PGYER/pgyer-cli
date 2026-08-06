@@ -1,0 +1,51 @@
+name: Publish to npm
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+
+      - name: Check if version already published
+        id: version
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          PUBLISHED=$(npm view "@pgyer/cli@$CURRENT" version 2>/dev/null || true)
+          if [ "$PUBLISHED" = "$CURRENT" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Version $CURRENT already on npm - skipping publish."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Publishing version $CURRENT."
+          fi
+
+      - name: Install dependencies
+        if: steps.version.outputs.skip == 'false'
+        run: npm ci
+
+      - name: Build
+        if: steps.version.outputs.skip == 'false'
+        run: npm run build
+
+      - name: Publish
+        if: steps.version.outputs.skip == 'false'
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

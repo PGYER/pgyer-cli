@@ -8,3 +8,4 @@
 - [输出模式](./spec/output.md) - LLM 友好输出、Human 模式
 - [模块设计](./spec/modules.md) - auth、apps、upload 模块详细设计
 - [API 规范](./spec/api.md) - 网络请求封装与 API 接口
+- [发布流程](./spec/release.md) - GitHub Actions 自动发布到 npm
