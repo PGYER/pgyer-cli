@@ -1,43 +1,30 @@
-import * as readline from 'readline';
 import { loadConfig, createApiClient, ApiError } from '../../core';
 import { createLogger, isHuman } from '../../utils/logger';
 import { createSpinner } from '../../utils/spinner';
-
-/**
- * Prompt for confirmation
- */
-function confirm(message: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stderr,
-    });
-
-    rl.question(`${message} (y/N): `, (answer) => {
-      rl.close();
-      resolve(answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes');
-    });
-  });
-}
+import { confirmDestructiveAction } from '../../utils/confirm';
 
 /**
  * Handle apps delete command
  */
-export async function handleAppsDelete(appKey: string, force: boolean): Promise<void> {
+export async function handleAppsDelete(
+  appKey: string,
+  force: boolean,
+  dryRun: boolean = false
+): Promise<void> {
   const logger = createLogger();
   const spinner = createSpinner('Deleting app...');
 
   try {
-    // Confirm deletion unless --force
-    if (!force && isHuman()) {
-      const confirmed = await confirm(
-        `Are you sure you want to delete app "${appKey}"?`
-      );
-      if (!confirmed) {
-        logger.error('Cancelled');
-        process.exit(1);
-      }
+    if (dryRun) {
+      const plan = { dryRun: true, action: 'deleteApp', appKey, deletesAllVersions: true };
+      if (isHuman()) logger.json(plan);
+      else logger.json(plan);
+      return;
     }
+    await confirmDestructiveAction(
+      `Permanently delete app "${appKey}" and all of its versions?`,
+      force
+    );
 
     const config = loadConfig();
     const api = createApiClient(config);

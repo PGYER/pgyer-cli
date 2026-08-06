@@ -183,15 +183,19 @@ Response:
 }
 ```
 
-### 上传 App
+### 快速上传 App
 
 ```
-POST /apiv2/app/upload
+POST /apiv2/app/getCOSToken
+POST <response.data.endpoint>
+GET /apiv2/app/buildInfo
+```
 
-Body (multipart/form-data):
+第一步参数：
+
 - _api_key: string
-- file: File
-- appKey: string (optional, 指定目标应用)
+- buildType: ios | android | harmonyos
+- oversea: 1 | 2 (optional)
 - buildUpdateDescription: string (optional)
 - buildInstallType: number (optional, 1=公开 2=密码 3=邀请)
 - buildPassword: string (optional, buildInstallType=2 时需要)
@@ -200,15 +204,9 @@ Body (multipart/form-data):
 - buildInstallEndDate: string (optional, 格式 YYYY-MM-DD)
 - buildChannelShortcut: string (optional, 渠道短链接)
 
-Response:
-{
-  "code": 0,
-  "data": {
-    "buildKey": "xxx",
-    "buildVersion": "1.0.0",
-    "buildBuildVersion": "1"
-  }
-}
+第二步使用动态 endpoint、签名参数和文件流上传，成功响应为 HTTP 204。
+
+第三步使用第一步返回的 `key` 作为 `buildKey`。`code=1247` 表示正在发布并继续轮询，`code=0` 返回最终 App 信息。
 ```
 
 ### 删除 App

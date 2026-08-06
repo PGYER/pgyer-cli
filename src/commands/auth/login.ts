@@ -3,6 +3,7 @@ import * as net from 'net';
 import open from 'open';
 import { saveConfig, loadConfig } from '../../core/config';
 import { createLogger, isHuman } from '../../utils/logger';
+import { isNonInteractive } from '../../utils/logger';
 import { createSpinner } from '../../utils/spinner';
 
 const DEFAULT_PORT = 3456;
@@ -114,6 +115,11 @@ function startCallbackServer(port: number): Promise<AuthData> {
  */
 export async function handleAuthLogin(): Promise<void> {
   const logger = createLogger();
+
+  if (isNonInteractive()) {
+    logger.error('Browser login requires Human mode; use --human or set PGYER_API_KEY');
+    process.exit(1);
+  }
 
   // Find an available port
   const port = await findAvailablePort(DEFAULT_PORT);

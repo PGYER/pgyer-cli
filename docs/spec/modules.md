@@ -153,7 +153,7 @@ App: MyApp (com.example.app)
 
 ### `pgyer upload <file> [options]`
 
-上传应用安装包。
+通过 API 2.0 快速上传流程上传应用安装包。命令默认等待蒲公英完成解析并返回最终版本信息。
 
 **参数**:
 
@@ -161,13 +161,18 @@ App: MyApp (com.example.app)
 
 **选项**:
 
-- `--app-key <key>` - 指定应用（可选，不指定则自动匹配）
+- `--app-key <key>` - 兼容保留；新版接口不支持，使用时返回明确错误
+- `--description <text>` - 应用介绍
 - `--build-update-description <desc>` - 版本更新说明
 - `--password <pwd>` - 安装密码（设置安装类型为密码安装）
 - `--invite-install` - 设置安装类型为邀请安装（不能与 --password 同时使用）
 - `--pubstart <date>` - 安装有效期开始日期（格式：YYYY-MM-DD）
 - `--pubend <date>` - 安装有效期结束日期（格式：YYYY-MM-DD）
 - `--short <shortcut>` - 渠道短链接
+- `--upload-region <auto|overseas|domestic>` - 上传区域
+- `--timeout <seconds>` - 上传及解析总超时，默认 300 秒
+- `--poll-interval <seconds>` - 解析轮询间隔，默认 4 秒
+- `--no-wait` - 文件上传成功后立即返回上传 key
 
 **安装类型判断逻辑**:
 
@@ -194,3 +199,30 @@ App: MyApp (com.example.app)
   Version: 1.0.0 (Build 1)
   URL: https://www.pgyer.com/xxx
 ```
+
+快速上传由 `getCOSToken`、向动态 COS endpoint 流式上传、`buildInfo` 轮询三步组成。存储上传必须返回 HTTP 204；`buildInfo` 返回 1247 表示继续解析。
+
+---
+
+## versions 模块
+
+版本模块支持历史版本分页、设置/取消最新版、检测更新和删除版本。删除版本必须交互确认或显式使用 `--force`。
+
+```bash
+pgyer versions list <appKey> [--page <number>] [--all]
+pgyer versions set-latest <buildKey>
+pgyer versions unset-latest <buildKey>
+pgyer versions check <appKey> [--current-version <version>] [--build-version <number>] [--channel <key>]
+pgyer versions delete <buildKey> --force
+```
+
+## apps 扩展
+
+```bash
+pgyer apps list [--page <number>] [--all]
+pgyer apps info <appKey> [--build <buildKey>]
+pgyer apps resolve <shortcut>
+pgyer apps update <appKey> [settings]
+```
+
+`apps update` 必须先读取当前配置后合并用户明确指定的字段，以避免 API 的全量更新语义覆盖未修改设置。

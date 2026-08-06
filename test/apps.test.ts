@@ -1,6 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
-import { backupConfig, restoreConfig, hasApiKey, runCli } from './setup';
+import { backupConfig, restoreConfig, clearTestConfig, hasApiKey, runCli } from './setup';
 
 describe('Apps Commands', () => {
   let backup: string | null;
@@ -15,6 +15,7 @@ describe('Apps Commands', () => {
 
   describe('apps list', () => {
     it('should fail without API key', async () => {
+      clearTestConfig();
       const result = await runCli(['apps', 'list', '--json'], {
         PGYER_API_KEY: '',
       });

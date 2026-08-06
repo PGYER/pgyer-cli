@@ -4,36 +4,33 @@ import { handleAuthLogout } from './logout';
 import { handleAuthStatus } from './status';
 import { handleAuthToken } from './token';
 
-const AUTH_ACTIONS = ['login', 'logout', 'status', 'token'] as const;
-
-/**
- * Register all auth commands
- */
 export function registerAuthCommands(cli: CAC): void {
   cli
-    .command('auth <action>', 'Authentication commands')
-    .example('pgyer auth login    # Login via browser')
-    .example('pgyer auth logout   # Clear saved credentials')
-    .example('pgyer auth status   # Show login status')
-    .example('pgyer auth token    # Display API token')
-    .action(async (action: string) => {
-      switch (action) {
-        case 'login':
-          await handleAuthLogin();
-          break;
-        case 'logout':
-          handleAuthLogout();
-          break;
-        case 'status':
-          handleAuthStatus();
-          break;
-        case 'token':
-          handleAuthToken();
-          break;
-        default:
-          console.error(`Unknown auth action: ${action}`);
-          console.error(`Available actions: ${AUTH_ACTIONS.join(', ')}`);
-          process.exit(1);
-      }
+    .command('auth:login', 'Log in through the PGYER website')
+    .usage('auth login')
+    .action(async () => {
+      await handleAuthLogin();
+    });
+
+  cli
+    .command('auth:logout', 'Clear locally saved credentials')
+    .usage('auth logout')
+    .action(() => {
+      handleAuthLogout();
+    });
+
+  cli
+    .command('auth:status', 'Show authentication status')
+    .usage('auth status')
+    .action(() => {
+      handleAuthStatus();
+    });
+
+  cli
+    .command('auth:token', 'Show the current API token in redacted form')
+    .usage('auth token [options]')
+    .option('--reveal', 'Reveal the complete API token')
+    .action((options: { reveal?: boolean }) => {
+      handleAuthToken(options.reveal ?? false);
     });
 }

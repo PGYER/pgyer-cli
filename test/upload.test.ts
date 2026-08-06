@@ -2,7 +2,7 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
 import * as fs from 'fs';
 import * as path from 'path';
-import { backupConfig, restoreConfig, hasApiKey, runCli } from './setup';
+import { backupConfig, restoreConfig, clearTestConfig, hasApiKey, runCli } from './setup';
 
 function getTestFilePath(): string | null {
   const envPath = process.env.TEST_APK_PATH || process.env.TEST_IPA_PATH;
@@ -43,13 +43,12 @@ describe('Upload Command', () => {
     const result = await runCli(['upload', '/nonexistent/file.apk', '--json']);
 
     assert.notStrictEqual(result.code, 0);
-    assert.ok(
-      result.stderr.includes('Error') || result.stdout.includes('Error'),
-      'Should contain error message'
-    );
+    const output = JSON.parse(result.stderr);
+    assert.strictEqual(output.error.code, 'FILE_NOT_FOUND');
   });
 
   it('should fail without API key', async () => {
+    clearTestConfig();
     // Create a temporary file for this test
     const tmpFile = path.resolve(__dirname, 'tmp-test-file.apk');
     fs.writeFileSync(tmpFile, 'dummy content');
@@ -68,21 +67,10 @@ describe('Upload Command', () => {
     }
   });
 
-  it('should reject --password and --invite-install together', async (t) => {
-    if (!hasApiKey()) {
-      t.skip('PGYER_API_KEY not set');
-      return;
-    }
-
-    const testFile = getTestFilePath();
-    if (!testFile) {
-      t.skip('No test file available');
-      return;
-    }
-
+  it('should reject --password and --invite-install together', async () => {
     const result = await runCli([
       'upload',
-      testFile,
+      '/nonexistent/validation.apk',
       '--password',
       '123456',
       '--invite-install',
@@ -90,30 +78,21 @@ describe('Upload Command', () => {
     ]);
 
     assert.notStrictEqual(result.code, 0);
+    assert.match(result.stderr, /cannot be used together/);
   });
 
-  it('should validate pubstart/pubend must be used together', async (t) => {
-    if (!hasApiKey()) {
-      t.skip('PGYER_API_KEY not set');
-      return;
-    }
-
-    const testFile = getTestFilePath();
-    if (!testFile) {
-      t.skip('No test file available');
-      return;
-    }
-
+  it('should validate pubstart/pubend must be used together', async () => {
     // Only pubstart, should fail
     const result = await runCli([
       'upload',
-      testFile,
+      '/nonexistent/validation.apk',
       '--pubstart',
       '2024-01-01',
       '--json',
     ]);
 
     assert.notStrictEqual(result.code, 0);
+    assert.match(result.stderr, /must be used together/);
   });
 
   it('should upload file successfully', async (t) => {

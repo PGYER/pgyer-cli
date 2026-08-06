@@ -1,155 +1,188 @@
 import { type CAC } from 'cac';
 import * as fs from 'fs';
 import * as path from 'path';
-import { loadConfig, createApiClient, ApiError } from '../../core';
+import { loadConfig, FastUploader, ApiError } from '../../core';
 import { createLogger, isHuman } from '../../utils/logger';
 import { createSpinner } from '../../utils/spinner';
 
-interface UploadResponse {
-  buildKey: string;
-  buildVersion: string;
-  buildBuildVersion: string;
-  buildName?: string;
+interface UploadCliOptions {
+  appKey?: string;
+  description?: string;
+  buildUpdateDescription?: string;
+  password?: string;
+  passwordEnv?: string | boolean;
+  inviteInstall?: boolean;
+  pubstart?: string;
+  pubend?: string;
+  short?: string;
+  uploadRegion?: string;
+  timeout?: string;
+  pollInterval?: string;
+  wait?: boolean;
 }
 
-/**
- * Register upload command
- */
+function parsePositiveSeconds(value: string | undefined, fallback: number, name: string): number {
+  if (value === undefined) return fallback;
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    throw new Error(`${name} must be a positive number of seconds`);
+  }
+  return seconds * 1000;
+}
+
+function parseUploadRegion(value: string | undefined): 1 | 2 | undefined {
+  switch (value ?? 'auto') {
+    case 'auto':
+      return undefined;
+    case 'overseas':
+      return 1;
+    case 'domestic':
+      return 2;
+    default:
+      throw new Error('--upload-region must be auto, overseas, or domestic');
+  }
+}
+
+function validateDate(value: string, name: string): void {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
+    throw new Error(`${name} must use YYYY-MM-DD format`);
+  }
+}
+
+/** Register the API 2.0 fast-upload command. */
 export function registerUploadCommand(cli: CAC): void {
   cli
     .command('upload <file>', 'Upload an app package (IPA/APK/HAP)')
-    .option('--app-key <key>', 'Target app key (optional)')
+    .option('--app-key <key>', 'Deprecated: not supported by the fast upload API')
+    .option('--description <text>', 'App description')
     .option('--build-update-description <desc>', 'Version update description')
     .option('--password <pwd>', 'Install password (sets install type to password)')
+    .option('--password-env [name]', 'Read install password from an environment variable')
     .option('--invite-install', 'Set install type to invite (cannot be used with --password)')
-    .option('--pubstart <date>', 'Install validity start date (format: YYYY-MM-DD)')
-    .option('--pubend <date>', 'Install validity end date (format: YYYY-MM-DD)')
+    .option('--pubstart <date>', 'Install validity start date (YYYY-MM-DD)')
+    .option('--pubend <date>', 'Install validity end date (YYYY-MM-DD)')
     .option('--short <shortcut>', 'Channel shortcut')
-    .action(
-      async (
-        file: string,
-        options: {
-          appKey?: string;
-          buildUpdateDescription?: string;
-          password?: string;
-          inviteInstall?: boolean;
-          pubstart?: string;
-          pubend?: string;
-          short?: string;
+    .option('--upload-region <region>', 'Upload region: auto, overseas, or domestic')
+    .option('--timeout <seconds>', 'Upload and processing timeout in seconds', { default: 300 })
+    .option('--poll-interval <seconds>', 'Build processing poll interval in seconds', { default: 4 })
+    .option('--no-wait', 'Return after file upload without waiting for processing')
+    .action(async (file: string, options: UploadCliOptions) => {
+      const logger = createLogger();
+      const spinner = createSpinner('Preparing upload...');
+
+      try {
+        if (options.appKey) {
+          throw new Error(
+            '--app-key is not supported by the fast upload API; the app is matched by its package identifier'
+          );
         }
-      ) => {
-        const logger = createLogger();
-        const spinner = createSpinner('Uploading...');
+        if (options.password !== undefined && options.passwordEnv !== undefined) {
+          throw new Error('--password and --password-env cannot be used together');
+        }
+        const passwordEnvName = options.passwordEnv === true
+          ? 'PGYER_INSTALL_PASSWORD'
+          : options.passwordEnv;
+        const envPassword = passwordEnvName ? process.env[passwordEnvName] : undefined;
+        if (passwordEnvName && !envPassword) {
+          throw new Error(`Environment variable ${passwordEnvName} is empty or not set`);
+        }
+        const installPassword = options.password ?? envPassword;
 
-        try {
-          // Validate --invite-install and --password are mutually exclusive
-          if (options.inviteInstall && options.password) {
-            logger.error('--invite-install and --password cannot be used together');
-            process.exit(1);
+        if (options.inviteInstall && installPassword) {
+          throw new Error('--invite-install and --password cannot be used together');
+        }
+        if ((options.pubstart && !options.pubend) || (!options.pubstart && options.pubend)) {
+          throw new Error('--pubstart and --pubend must be used together');
+        }
+        if (options.pubstart && options.pubend) {
+          validateDate(options.pubstart, '--pubstart');
+          validateDate(options.pubend, '--pubend');
+          if (options.pubend <= options.pubstart) {
+            throw new Error('--pubend must be greater than --pubstart');
           }
+        }
 
-          // Validate pubstart/pubend
-          if ((options.pubstart && !options.pubend) || (!options.pubstart && options.pubend)) {
-            logger.error('--pubstart and --pubend must be used together');
-            process.exit(1);
-          }
+        const filePath = path.resolve(file);
+        if (!fs.existsSync(filePath)) {
+          throw new Error(`File not found: ${filePath}`);
+        }
+        if (!fs.statSync(filePath).isFile()) {
+          throw new Error(`Path is not a file: ${filePath}`);
+        }
 
-          if (options.pubstart && options.pubend) {
-            const startDate = new Date(options.pubstart);
-            const endDate = new Date(options.pubend);
+        let buildInstallType = 1;
+        if (options.inviteInstall) buildInstallType = 3;
+        else if (installPassword) buildInstallType = 2;
 
-            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-              logger.error('Invalid date format. Use YYYY-MM-DD format');
-              process.exit(1);
-            }
+        const uploader = new FastUploader(loadConfig());
+        spinner.start();
+        const result = await uploader.upload({
+          filePath,
+          buildDescription: options.description,
+          buildUpdateDescription: options.buildUpdateDescription,
+          buildInstallType,
+          buildPassword: installPassword,
+          buildInstallDate: options.pubstart ? 1 : undefined,
+          buildInstallStartDate: options.pubstart,
+          buildInstallEndDate: options.pubend,
+          buildChannelShortcut: options.short,
+          oversea: parseUploadRegion(options.uploadRegion),
+          timeoutMs: parsePositiveSeconds(options.timeout, 300, '--timeout'),
+          pollIntervalMs: parsePositiveSeconds(options.pollInterval, 4, '--poll-interval'),
+          wait: options.wait !== false,
+          onStatus: (status) => spinner.text(status),
+        });
 
-            if (endDate <= startDate) {
-              logger.error('--pubend must be greater than --pubstart');
-              process.exit(1);
-            }
-          }
-
-          // Validate file exists
-          const filePath = path.resolve(file);
-          if (!fs.existsSync(filePath)) {
-            logger.error(`File not found: ${filePath}`);
-            process.exit(1);
-          }
-
-          const config = loadConfig();
-          const api = createApiClient(config);
-
-          // Determine install type
-          let buildInstallType = 1; // Default: public
-          if (options.inviteInstall) {
-            buildInstallType = 3; // Invite
-          } else if (options.password) {
-            buildInstallType = 2; // Password
-          }
-
-          // Build form data
-          const formData = new FormData();
-          const fileContent = fs.readFileSync(filePath);
-          const fileName = path.basename(filePath);
-
-          const blob = new Blob([fileContent]);
-          formData.append('file', blob, fileName);
-
-          if (options.appKey) {
-            formData.append('appKey', options.appKey);
-          }
-          if (options.buildUpdateDescription) {
-            formData.append('buildUpdateDescription', options.buildUpdateDescription);
-          }
-
-          formData.append('buildInstallType', String(buildInstallType));
-
-          if (options.password) {
-            formData.append('buildPassword', options.password);
-          }
-
-          if (options.pubstart && options.pubend) {
-            formData.append('buildInstallDate', '1');
-            formData.append('buildInstallStartDate', options.pubstart);
-            formData.append('buildInstallEndDate', options.pubend);
-          }
-
-          if (options.short) {
-            formData.append('buildChannelShortcut', options.short);
-          }
-
-          spinner.start();
-          const data = await api.request<UploadResponse>({
-            method: 'POST',
-            path: '/apiv2/app/upload',
-            body: formData,
-          });
-          spinner.succeed('Upload successful');
-
+        if (result.status === 'uploaded' || !result.data) {
+          spinner.succeed('Package uploaded; processing continues on PGYER');
           if (isHuman()) {
-            console.log(
-              `Version: ${data.buildVersion} (Build ${data.buildBuildVersion})\n` +
-              `URL: https://www.pgyer.com/${data.buildKey}`
-            );
+            logger.text(`Upload key: ${result.uploadKey}`);
           } else {
             logger.json({
               success: true,
-              buildKey: data.buildKey,
-              buildVersion: data.buildVersion,
-              buildBuildVersion: data.buildBuildVersion,
+              status: result.status,
+              pending: true,
+              uploadKey: result.uploadKey,
             });
           }
-        } catch (error) {
-          spinner.fail('Upload failed');
-          if (error instanceof ApiError) {
-            logger.error(`[${error.code}] ${error.message}`);
-          } else {
-            const message =
-              error instanceof Error ? error.message : 'Unknown error';
-            logger.error(message);
-          }
-          process.exit(1);
+          return;
         }
+
+        const data = result.data;
+        spinner.succeed('Upload and processing completed');
+        const url = data.buildShortcutUrl
+          ? `https://www.pgyer.com/${data.buildShortcutUrl}`
+          : undefined;
+        if (isHuman()) {
+          logger.text(
+            `App: ${data.buildName}\n` +
+              `Version: ${data.buildVersion} (Build ${data.buildBuildVersion})\n` +
+              `Build Key: ${data.buildKey}` +
+              (url ? `\nURL: ${url}` : '')
+          );
+        } else {
+          logger.json({
+            success: true,
+            status: result.status,
+            appKey: data.appKey,
+            buildKey: data.buildKey,
+            buildName: data.buildName,
+            buildVersion: data.buildVersion,
+            buildVersionNo: data.buildVersionNo,
+            buildBuildVersion: data.buildBuildVersion,
+            buildIdentifier: data.buildIdentifier,
+            shortcut: data.buildShortcutUrl,
+            url,
+          });
+        }
+      } catch (error) {
+        spinner.fail('Upload failed');
+        if (error instanceof ApiError) {
+          logger.error(`[${error.code}] ${error.message}`);
+        } else {
+          logger.error(error instanceof Error ? error.message : 'Unknown error');
+        }
+        process.exit(1);
       }
-    );
+    });
 }

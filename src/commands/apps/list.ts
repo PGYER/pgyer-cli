@@ -20,6 +20,11 @@ interface AppListResponse {
   list: AppItem[];
 }
 
+export interface AppsListOptions {
+  page?: string;
+  all?: boolean;
+}
+
 /**
  * Get platform name from buildType
  */
@@ -48,7 +53,20 @@ function formatFileSize(bytes: number): string {
 /**
  * Handle apps list command
  */
-export async function handleAppsList(): Promise<void> {
+function parsePage(value: string | undefined): number {
+  if (value === undefined) return 1;
+  const page = Number(value);
+  if (!Number.isInteger(page) || page < 1) {
+    throw new Error('--page must be a positive integer');
+  }
+  return page;
+}
+
+function normalizeApps(data: AppListResponse | AppItem[]): AppItem[] {
+  return Array.isArray(data) ? data : (data.list ?? []);
+}
+
+export async function handleAppsList(options: AppsListOptions = {}): Promise<void> {
   const logger = createLogger();
   const spinner = createSpinner('Fetching apps...');
 
@@ -56,14 +74,43 @@ export async function handleAppsList(): Promise<void> {
     const config = loadConfig();
     const api = createApiClient(config);
 
-    spinner.start();
-    const data = await api.request<AppListResponse>({
-      method: 'POST',
-      path: '/apiv2/app/listMy',
-    });
-    spinner.succeed(`Found ${data.list.length} apps`);
+    if (options.all && options.page !== undefined) {
+      throw new Error('--all and --page cannot be used together');
+    }
 
-    const apps = data.list.map((app) => ({
+    spinner.start();
+    const firstPage = parsePage(options.page);
+    let page = firstPage;
+    let pagesFetched = 0;
+    const rawApps: AppItem[] = [];
+    const seen = new Set<string>();
+
+    do {
+      const data = await api.request<AppListResponse | AppItem[]>({
+        method: 'POST',
+        path: '/apiv2/app/listMy',
+        params: { page },
+      });
+      pagesFetched += 1;
+      const pageApps = normalizeApps(data);
+      const newApps = pageApps.filter((app) => {
+        const identity = app.appKey || app.buildKey;
+        if (seen.has(identity)) return false;
+        seen.add(identity);
+        return true;
+      });
+      rawApps.push(...newApps);
+
+      if (!options.all || pageApps.length === 0 || newApps.length === 0) break;
+      page += 1;
+      if (pagesFetched >= 100) {
+        throw new Error('Stopped after 100 pages; use --page to continue explicitly');
+      }
+    } while (true);
+
+    spinner.succeed(`Found ${rawApps.length} apps`);
+
+    const apps = rawApps.map((app) => ({
       name: app.buildName,
       bundleId: app.buildIdentifier,
       version: app.buildVersion,
@@ -76,7 +123,7 @@ export async function handleAppsList(): Promise<void> {
     if (isHuman()) {
       logger.table(apps);
     } else {
-      logger.json({ apps });
+      logger.json({ apps, page: firstPage, pagesFetched });
     }
   } catch (error) {
     spinner.fail('Failed to fetch apps');

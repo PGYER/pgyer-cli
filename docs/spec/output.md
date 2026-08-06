@@ -4,55 +4,42 @@
 
 CLI 工具需要同时支持两种使用场景：
 
-1. **LLM/脚本调用** — 默认模式，机器可解析
-2. **人类交互** — `--human` 模式，友好可读
+1. **真人与 AI Agent** — 默认共用清晰、简洁的人类可读输出
+2. **严格脚本解析** — 显式 `--json`，输出稳定的 JSON
 
-## 默认模式 (LLM 友好)
+## 默认模式（人类可读、Agent 可理解）
 
 **特点**:
 
-- 无颜色、无动画、无格式化
-- 结构化数据输出 JSON 格式
-- 错误信息 plain text，前缀 `Error:`
-- 进度信息不输出或输出到 stderr
+- 字段名称明确、层级简洁，避免无意义装饰和冗余文案
+- 终端支持时可以使用颜色、动画和表格
+- 错误写入 stderr，并使用非零退出码
+- 无输入 TTY 时不得请求交互确认
 
 **示例**:
 
 ```bash
-$ pgyer apps list
-{"apps":[{"name":"MyApp","bundleId":"com.example.app","appKey":"abc123"}]}
-
 $ pgyer auth status
-{"loggedIn":true,"user":"test@example.com"}
+✔ Logged in as test@example.com
 
 $ pgyer apps info invalid
 Error: App not found
 ```
 
-## Human 模式 (`--human` / `-H`)
+## JSON 模式 (`--json`)
 
 **特点**:
 
-- 启用 picocolors 颜色输出
-- 启用 ora 加载动画
-- 表格格式化、对齐（可用 cli-table3）
-- 友好的提示信息、emoji
+- 无颜色、无动画、无交互
+- 成功结果以命令自身的 JSON 结构写入 stdout
+- 错误以统一错误对象写入 stderr
+- 不强制所有成功结果使用统一 envelope
 
 **示例**:
 
 ```bash
-$ pgyer apps list --human
-✔ Found 2 apps
-
-┌─────────┬────────────────────┬──────────┐
-│ Name    │ Bundle ID          │ App Key  │
-├─────────┼────────────────────┼──────────┤
-│ MyApp   │ com.example.app    │ abc123   │
-│ DemoApp │ com.example.demo   │ def456   │
-└─────────┴────────────────────┴──────────┘
-
-$ pgyer auth status --human
-✔ Logged in as test@example.com
+$ pgyer auth status --json
+{"loggedIn":true,"user":"test@example.com"}
 ```
 
 ## 实现要点
@@ -69,14 +56,14 @@ interface Logger {
 }
 
 // 全局状态
-let isHumanMode = false;
+let outputMode: 'human' | 'json' = 'human';
 
-export function setHumanMode(enabled: boolean) {
-  isHumanMode = enabled;
+export function setOutputMode(mode: 'human' | 'json') {
+  outputMode = mode;
 }
 
 export function createLogger(): Logger {
-  if (isHumanMode) {
+  if (outputMode === 'human') {
     return new HumanLogger();
   }
   return new JsonLogger();
@@ -87,5 +74,5 @@ export function createLogger(): Logger {
 
 - `--human` 与 `--json` 同时指定时，`--human` 优先
 - `--json` 强制 JSON 输出（即使配置文件指定 text）
-- 未指定 `--human` 或 `--json` 时，根据 `process.stdout.isTTY` 自动检测：TTY 环境默认 human 模式，非 TTY 环境默认 JSON 模式
-- 优先级：`--human` > `--json` > TTY 自动检测
+- 未指定 `--human` 或 `--json` 时始终使用默认人类可读输出
+- 优先级：`--human` > `--json` > 默认人类可读输出

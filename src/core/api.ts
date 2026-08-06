@@ -25,6 +25,8 @@ export interface RequestOptions {
   params?: Record<string, unknown>;
   /** Request body */
   body?: FormData | Record<string, unknown>;
+  /** Abort the request when the owning command times out */
+  signal?: AbortSignal;
 }
 
 /**
@@ -52,6 +54,9 @@ export class ApiClient {
    * Make an API request
    */
   async request<T>(options: RequestOptions): Promise<T> {
+    if (!this.apiKey) {
+      throw new ApiError(1001, 'API Key is required. Run "pgyer auth login" or set PGYER_API_KEY');
+    }
     const url = new URL(this.baseUrl + options.path);
 
     // Build query params
@@ -63,6 +68,7 @@ export class ApiClient {
     // Build fetch options
     const fetchOptions: RequestInit = {
       method: options.method,
+      signal: options.signal,
     };
 
     // Handle body for POST requests

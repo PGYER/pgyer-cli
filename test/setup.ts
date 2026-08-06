@@ -91,8 +91,7 @@ export function runCli(args: string[], envOverrides?: Record<string, string>): P
   const cliPath = path.resolve(__dirname, '../src/index.ts');
 
   return new Promise((resolve) => {
-    const child = spawn('npx', ['tsx', cliPath, ...args], {
-      shell: true,
+    const child = spawn(process.execPath, ['--import', 'tsx', cliPath, ...args], {
       env: { ...process.env, ...envOverrides },
     });
 

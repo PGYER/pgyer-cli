@@ -1,6 +1,6 @@
 {
   "name": "@pgyer/cli",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "CLI tool for PGYER app distribution platform",
   "keywords": [
     "pgyer",
@@ -34,12 +34,13 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "prepublishOnly": "npm run build",
-    "test": "node --test --import tsx test/**/*.test.ts",
+    "test": "node --test --test-concurrency=1 --import tsx test/**/*.test.ts",
     "test:interactive": "npx tsx test/run.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "cac": "^6.7.14",
+    "form-data": "^4.0.6",
     "open": "^10.1.0",
     "ora": "^8.2.0",
     "picocolors": "^1.1.1"

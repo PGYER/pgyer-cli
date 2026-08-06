@@ -1,8 +1,10 @@
 import { cac } from 'cac';
-import { setHumanMode, createLogger } from './utils/logger';
+import { setOutputMode, createLogger } from './utils/logger';
 import { registerAuthCommands } from './commands/auth';
 import { registerAppsCommands } from './commands/apps';
 import { registerUploadCommand } from './commands/upload';
+import { registerVersionCommands } from './commands/versions';
+import { registerUploadStatusCommands } from './commands/uploads';
 
 // Bundled by tsup so the CLI version always matches the published package.
 const { version: VERSION } = require('../package.json') as { version: string };
@@ -18,11 +20,14 @@ function createCLI() {
 
   // Global options
   cli
-    .option('-H, --human', 'Enable human-friendly output')
-    .option('--json', 'Force JSON output');
+    .option('-H, --human', 'Force human-friendly output (the default)')
+    .option('--json', 'Output machine-readable JSON and disable prompts');
 
   // Help text
-  cli.help();
+  cli.help((sections) => sections.map((section) => ({
+    ...section,
+    body: section.body.replace(/\b(apps|auth|versions|uploads):/g, '$1 '),
+  })));
 
   return cli;
 }
@@ -33,36 +38,59 @@ function createCLI() {
 async function main() {
   const cli = createCLI();
 
-  // Determine output mode BEFORE parsing
-  // Priority: --human > --json > TTY detection
+  // Default output is intentionally shared by people and agents. JSON is an
+  // explicit opt-in for callers that need a stable machine-readable format.
   const hasHumanFlag = process.argv.includes('-H') || process.argv.includes('--human');
   const hasJsonFlag = process.argv.includes('--json');
 
-  let isHumanMode: boolean;
-  if (hasHumanFlag) {
-    // --human takes highest priority
-    isHumanMode = true;
-  } else if (hasJsonFlag) {
-    // --json forces JSON output
-    isHumanMode = false;
+  if (hasJsonFlag && !hasHumanFlag) {
+    setOutputMode('json');
   } else {
-    // Default: determine by TTY
-    isHumanMode = process.stdout.isTTY ?? false;
+    setOutputMode('human');
   }
-  setHumanMode(isHumanMode);
 
   // Register commands
   registerAuthCommands(cli);
   registerAppsCommands(cli);
   registerUploadCommand(cli);
+  registerVersionCommands(cli);
+  registerUploadStatusCommands(cli);
+
+  // CAC does not natively support git-style nested commands. Internally use a
+  // colon while keeping the public interface as `pgyer apps list`.
+  const argv = normalizeNestedCommand(process.argv);
+
+  cli.on('command:*', () => {
+    const command = argv.slice(2).filter(arg => !arg.startsWith('-')).slice(0, 2).join(' ');
+    throw new Error(`Unknown command: ${command || '(none)'}`);
+  });
 
   // Parse argv
-  const result = cli.parse();
+  const result = cli.parse(argv);
 
   // Handle no command
-  if (!result.args.length && !result.options.help && !result.options.version) {
+  if (!cli.matchedCommand && !result.args.length && !result.options.help && !result.options.version) {
     cli.outputHelp();
   }
+}
+
+function normalizeNestedCommand(argv: string[]): string[] {
+  const groups = new Set(['apps', 'auth', 'versions', 'uploads']);
+  const normalized = [...argv];
+  const commandIndex = normalized.findIndex((arg, index) => index >= 2 && !arg.startsWith('-'));
+
+  if (commandIndex === -1 || !groups.has(normalized[commandIndex])) {
+    return normalized;
+  }
+
+  const actionIndex = commandIndex + 1;
+  const action = normalized[actionIndex];
+  if (!action || action.startsWith('-')) {
+    return normalized;
+  }
+
+  normalized.splice(commandIndex, 2, `${normalized[commandIndex]}:${action}`);
+  return normalized;
 }
 
 // Run CLI

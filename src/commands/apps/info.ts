@@ -69,7 +69,7 @@ function formatFileSize(bytes: number): string {
 /**
  * Handle apps info command
  */
-export async function handleAppsInfo(appKey: string): Promise<void> {
+export async function handleAppsInfo(appKey: string, buildKey?: string): Promise<void> {
   const logger = createLogger();
   const spinner = createSpinner('Fetching app info...');
 
@@ -81,7 +81,7 @@ export async function handleAppsInfo(appKey: string): Promise<void> {
     const data = await api.request<AppDetail>({
       method: 'POST',
       path: '/apiv2/app/view',
-      params: { appKey },
+      params: { appKey, buildKey },
     });
     spinner.succeed('App info retrieved');
 
@@ -108,7 +108,7 @@ export async function handleAppsInfo(appKey: string): Promise<void> {
           `  Platform:    ${getPlatformName(data.buildType)}\n` +
           `  Size:        ${formatFileSize(parseInt(data.buildFileSize, 10))}\n` +
           `  Shortcut:    ${data.buildShortcutUrl}\n` +
-          `  Install:     ${getInstallType(data.buildInstallType)}${data.buildPassword ? ` (${data.buildPassword})` : ''}\n` +
+          `  Install:     ${getInstallType(data.buildInstallType)}\n` +
           `  Created:     ${data.buildCreated}\n` +
           `  Updated:     ${data.buildUpdated}\n` +
           `  Expires:     ${data.appExpiredDate}`

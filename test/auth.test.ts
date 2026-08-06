@@ -21,6 +21,15 @@ describe('Auth Commands', () => {
   });
 
   describe('auth status', () => {
+    it('should keep readable output by default even without a TTY', async () => {
+      clearTestConfig();
+      const result = await runCli(['auth', 'status'], { PGYER_API_KEY: '' });
+
+      assert.strictEqual(result.code, 0);
+      assert.match(result.stdout, /Not logged in/);
+      assert.doesNotMatch(result.stdout, /^\s*\{/);
+    });
+
     it('should show not logged in when no credentials', async () => {
       clearTestConfig();
       // Must also clear env var to avoid env-based auth detection
@@ -60,14 +69,30 @@ describe('Auth Commands', () => {
   });
 
   describe('auth token', () => {
-    it('should show token from config', async () => {
-      saveTestConfig({ apiKey: 'my-test-token' });
+    it('should redact token from config by default', async () => {
+      saveTestConfig({ apiKey: 'my-test-token-1234' });
 
       // Clear env to ensure reading from config file
       const result = await runCli(['auth', 'token', '--json'], { PGYER_API_KEY: '' });
 
       const output = JSON.parse(result.stdout);
-      assert.strictEqual(output.token, 'my-test-token');
+      assert.strictEqual(output.redacted, true);
+      assert.notStrictEqual(output.token, 'my-test-token-1234');
+      assert.ok(output.token.startsWith('my-t'));
+      assert.ok(output.token.endsWith('1234'));
+    });
+
+    it('should reveal token only when explicitly requested', async () => {
+      saveTestConfig({ apiKey: 'my-test-token-1234' });
+
+      const result = await runCli(
+        ['auth', 'token', '--reveal', '--json'],
+        { PGYER_API_KEY: '' }
+      );
+
+      const output = JSON.parse(result.stdout);
+      assert.strictEqual(output.token, 'my-test-token-1234');
+      assert.strictEqual(output.redacted, false);
     });
 
     it('should show error when no token', async () => {

@@ -1,22 +1,29 @@
 import pc from 'picocolors';
 
-/**
- * Global flag to enable human-friendly output
- */
-let isHumanMode = false;
+export type OutputMode = 'human' | 'json';
+
+let outputMode: OutputMode = 'human';
+
+export function setOutputMode(mode: OutputMode): void {
+  outputMode = mode;
+}
 
 /**
  * Set the output mode globally
  */
 export function setHumanMode(enabled: boolean): void {
-  isHumanMode = enabled;
+  outputMode = enabled ? 'human' : 'json';
 }
 
 /**
  * Get current human mode status
  */
 export function isHuman(): boolean {
-  return isHumanMode;
+  return outputMode === 'human';
+}
+
+export function isNonInteractive(): boolean {
+  return outputMode !== 'human' || !process.stdin.isTTY;
 }
 
 /**
@@ -38,7 +45,7 @@ export interface Logger {
 }
 
 /**
- * JSON logger for LLM-friendly output (default mode)
+ * JSON logger for explicit machine-readable output
  */
 class JsonLogger implements Logger {
   json(data: unknown): void {
@@ -50,7 +57,13 @@ class JsonLogger implements Logger {
   }
 
   error(message: string): void {
-    console.error(`Error: ${message}`);
+    const classification = classifyError(message);
+    console.error(JSON.stringify({
+      error: {
+        ...classification,
+        message: message.replace(/^\[\d+\]\s*/, ''),
+      },
+    }));
   }
 
   table(_data: Record<string, unknown>[]): void {
@@ -63,9 +76,54 @@ class JsonLogger implements Logger {
   }
 
   info(message: string): void {
-    console.error(message);
+    console.error(JSON.stringify({ info: { message } }));
   }
 }
+
+function classifyError(message: string): {
+  code: string;
+  retryable: boolean;
+  hint?: string;
+} {
+  const apiCode = message.match(/^\[(\d+)\]/)?.[1];
+  if (apiCode === '1001' || apiCode === '1002' || apiCode === '1055') {
+    return {
+      code: 'AUTH_FAILED',
+      retryable: false,
+      hint: 'Run pgyer auth login or set PGYER_API_KEY',
+    };
+  }
+  if (apiCode === '1098') {
+    return { code: 'RATE_LIMITED', retryable: true, hint: 'Retry after a delay' };
+  }
+  if (/API Key|Not logged in|Not authenticated/i.test(message)) {
+    return {
+      code: 'AUTH_REQUIRED',
+      retryable: false,
+      hint: 'Run pgyer auth login or set PGYER_API_KEY',
+    };
+  }
+  if (/timed out|timeout/i.test(message)) {
+    return { code: 'TIMEOUT', retryable: true };
+  }
+  if (/Confirmation requires|use --force/i.test(message)) {
+    return { code: 'CONFIRMATION_REQUIRED', retryable: false, hint: 'Review the target and retry with --force' };
+  }
+  if (/Cancelled/i.test(message)) {
+    return { code: 'CANCELLED', retryable: false };
+  }
+  if (/File not found|Path is not a file/i.test(message)) {
+    return { code: 'FILE_NOT_FOUND', retryable: false };
+  }
+  if (/must |cannot |required|Unsupported|Unknown |At least one|Invalid/i.test(message)) {
+    return { code: 'INVALID_ARGUMENT', retryable: false };
+  }
+  if (apiCode) {
+    return { code: `PGYER_${apiCode}`, retryable: false };
+  }
+  return { code: 'COMMAND_FAILED', retryable: false };
+}
+
 
 /**
  * Human-friendly logger with colors and formatting
@@ -140,7 +198,7 @@ class HumanLogger implements Logger {
  * Create a logger instance based on current mode
  */
 export function createLogger(): Logger {
-  if (isHumanMode) {
+  if (outputMode === 'human') {
     return new HumanLogger();
   }
   return new JsonLogger();

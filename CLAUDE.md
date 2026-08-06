@@ -4,7 +4,7 @@
 
 基于 Node.js + TypeScript 的全局 CLI 工具，支持 `npm i -g @pgyer/cli` 和 `npx @pgyer/cli`。
 
-**设计原则**：默认 LLM 友好输出（无颜色、JSON），`--human` / `-H` 启用人性化输出。
+**设计原则**：真人与 AI Agent 默认共用简洁的人类可读输出；仅在调用方需要稳定机器解析时显式使用 `--json`。`--human` / `-H` 保留为显式兼容选项。
 
 ## 2. 开发流程
 
@@ -28,8 +28,9 @@ src/
 ├── index.ts                 # CLI 入口
 ├── commands/
 │   ├── auth/                # login, logout, status, token
-│   ├── apps/                # list, info, delete
-│   └── upload/              # upload (独立模块)
+│   ├── apps/                # list, info, resolve, update, delete
+│   ├── versions/            # list, latest, check, delete
+│   └── upload/              # API 2.0 快速上传
 ├── core/
 │   ├── config.ts            # 配置管理
 │   ├── env.ts               # 环境变量解析
@@ -55,7 +56,8 @@ src/
 
 ```bash
 pgyer auth login/logout/status/token
-pgyer apps list/info <appKey>/delete <appKey>
+pgyer apps list/info/resolve/update/delete
+pgyer versions list/set-latest/unset-latest/check/delete
 pgyer upload <file>
 
 # 全局选项: --human/-H, --json, --help
