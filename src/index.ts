@@ -4,8 +4,8 @@ import { registerAuthCommands } from './commands/auth';
 import { registerAppsCommands } from './commands/apps';
 import { registerUploadCommand } from './commands/upload';
 
-// CLI version from package.json
-const VERSION = '0.1.0';
+// Bundled by tsup so the CLI version always matches the published package.
+const { version: VERSION } = require('../package.json') as { version: string };
 
 /**
  * Create and configure CLI

@@ -1,32 +1,76 @@
-name: Publish to npm
+name: CI & Publish to npm
 
 on:
   push:
     branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: pgyer-cli-ci-publish
+  cancel-in-progress: false
 
 jobs:
   publish:
-    name: Build & Publish
+    name: Test, Build & Publish
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           cache: npm
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+        env:
+          HOME: ${{ runner.temp }}/pgyer-cli-test-home
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke test package
+        shell: bash
+        run: |
+          npm pack --json > package-pack.json
+          PACKAGE_FILE=$(node -p "require('./package-pack.json')[0].filename")
+          EXPECTED_VERSION=$(node -p "require('./package.json').version")
+          SMOKE_DIR="$RUNNER_TEMP/pgyer-cli-smoke"
+          npm install --prefix "$SMOKE_DIR" "./$PACKAGE_FILE"
+          CLI="$SMOKE_DIR/node_modules/.bin/pgyer"
+          ACTUAL_VERSION=$("$CLI" --version)
+          echo "$ACTUAL_VERSION"
+          "$CLI" --help > /dev/null
+          if [[ "$ACTUAL_VERSION" != "pgyer/$EXPECTED_VERSION "* ]]; then
+            echo "::error::Expected pgyer/$EXPECTED_VERSION, got: $ACTUAL_VERSION"
+            exit 1
+          fi
+
       - name: Check if version already published
         id: version
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        shell: bash
         run: |
           CURRENT=$(node -p "require('./package.json').version")
           echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "v$CURRENT" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package version v$CURRENT."
+            exit 1
+          fi
           PUBLISHED=$(npm view "@pgyer/cli@$CURRENT" version 2>/dev/null || true)
           if [ "$PUBLISHED" = "$CURRENT" ]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -35,14 +79,6 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
             echo "Publishing version $CURRENT."
           fi
-
-      - name: Install dependencies
-        if: steps.version.outputs.skip == 'false'
-        run: npm ci
-
-      - name: Build
-        if: steps.version.outputs.skip == 'false'
-        run: npm run build
 
       - name: Publish
         if: steps.version.outputs.skip == 'false'
