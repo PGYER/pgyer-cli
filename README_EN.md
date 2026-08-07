@@ -1,0 +1,302 @@
+# @pgyer/cli
+
+[简体中文](./README.md) | English
+
+A modern command-line client for the [PGYER](https://www.pgyer.com/) app
+distribution platform. Upload IPA, APK, and HAP packages through the API 2.0
+fast-upload flow, manage apps and historical builds, and integrate releases
+into CI or AI-agent workflows.
+
+## Highlights
+
+- API 2.0 fast uploads with streamed file transfer
+- IPA, APK, and HAP package support
+- Domestic, overseas, and automatic upload-region selection
+- Synchronous uploads or asynchronous status tracking
+- App discovery, settings management, and safe deletion workflows
+- Historical build listing, update checks, latest-version controls, and deletion
+- Readable output by default, with explicit JSON for automation
+- Non-interactive safeguards, `--dry-run`, redacted credentials, and stable errors
+
+## Requirements
+
+- Node.js 18 or later
+- A PGYER account or API Key
+
+## Installation
+
+Install the CLI globally:
+
+```bash
+npm install --global @pgyer/cli
+```
+
+Or run it without installing:
+
+```bash
+npx @pgyer/cli --help
+```
+
+## Quick Start
+
+```bash
+# Authenticate in the browser
+pgyer auth login
+
+# Confirm the active account
+pgyer auth status
+
+# Upload and wait until PGYER finishes processing
+pgyer upload ./app-release.apk
+
+# Inspect apps and historical builds
+pgyer apps list
+pgyer versions list <appKey>
+```
+
+For CI, provide the API Key without starting browser login:
+
+```bash
+export PGYER_API_KEY="your-api-key"
+pgyer upload ./app-release.apk --json
+```
+
+## Fast Upload
+
+`pgyer upload` uses the PGYER API 2.0 fast-upload flow. The CLI requests upload
+credentials, streams the package directly to object storage, and waits for
+PGYER to publish the build unless `--no-wait` is specified.
+
+```bash
+# Upload with automatic region selection
+pgyer upload ./app.apk
+
+# Prefer domestic upload infrastructure and allow up to 10 minutes
+pgyer upload ./app.hap --upload-region domestic --timeout 600
+
+# Add release notes
+pgyer upload ./app.ipa \
+  --build-update-description "Fix startup performance and known issues"
+```
+
+### Installation controls
+
+Avoid placing installation passwords directly in shell history. The bare
+`--password-env` option reads `PGYER_INSTALL_PASSWORD`; a custom variable name
+can also be supplied.
+
+```bash
+export PGYER_INSTALL_PASSWORD="replace-with-a-secret"
+pgyer upload ./app.apk --password-env
+
+export RELEASE_INSTALL_PASSWORD="replace-with-a-secret"
+pgyer upload ./app.apk --password-env RELEASE_INSTALL_PASSWORD
+
+pgyer upload ./app.apk --invite-install
+pgyer upload ./app.ipa --pubstart 2026-08-01 --pubend 2026-12-31
+```
+
+`--pubstart` and `--pubend` must be used together, and the end date must be
+later than the start date.
+
+### Upload options
+
+| Option | Description |
+| --- | --- |
+| `--description <text>` | Set the app description |
+| `--build-update-description <text>` | Set release notes for this build |
+| `--password <password>` | Use password-protected installation |
+| `--password-env [name]` | Read the password from an environment variable; defaults to `PGYER_INSTALL_PASSWORD` |
+| `--invite-install` | Restrict installation to invited users |
+| `--pubstart <YYYY-MM-DD>` | Set the installation-validity start date |
+| `--pubend <YYYY-MM-DD>` | Set the installation-validity end date |
+| `--short <shortcut>` | Set a channel shortcut |
+| `--upload-region <region>` | Select `auto`, `domestic`, or `overseas`; defaults to `auto` |
+| `--timeout <seconds>` | Set the total upload and processing timeout; defaults to `300` |
+| `--poll-interval <seconds>` | Set the build-processing poll interval; defaults to `4` |
+| `--no-wait` | Return after storage upload without waiting for PGYER processing |
+
+The legacy `--app-key` upload option is not supported by fast upload. PGYER
+associates the uploaded package with an app using its package identifier.
+
+## Asynchronous Uploads
+
+Use `--no-wait` when a pipeline should release its worker while PGYER processes
+the package. The returned `uploadKey` can be checked once or waited on later.
+
+```bash
+UPLOAD_KEY=$(
+  pgyer upload ./app.apk --no-wait --json |
+  jq -r '.uploadKey'
+)
+
+# Query once; returns pending or published
+pgyer uploads status "$UPLOAD_KEY" --json
+
+# Poll until published or timed out
+pgyer uploads wait "$UPLOAD_KEY" \
+  --timeout 600 \
+  --poll-interval 4 \
+  --json
+```
+
+`uploads status` performs one request. `uploads wait` polls until PGYER
+publishes the build or the configured timeout expires.
+
+## Command Reference
+
+### Authentication
+
+| Command | Description |
+| --- | --- |
+| `pgyer auth login` | Authenticate through the browser and save credentials locally |
+| `pgyer auth logout` | Remove saved credentials while preserving unrelated configuration |
+| `pgyer auth status` | Show the current authentication state |
+| `pgyer auth token` | Show the active token in redacted form |
+| `pgyer auth token --reveal` | Explicitly reveal the complete active token |
+
+Browser login requires an interactive terminal. In CI and other
+non-interactive environments, use `PGYER_API_KEY`.
+
+### Apps
+
+| Command | Description |
+| --- | --- |
+| `pgyer apps list` | List the first page of apps |
+| `pgyer apps list --page <number>` | List a specific page |
+| `pgyer apps list --all` | Fetch every available page |
+| `pgyer apps info <appKey>` | Show the current build and app details |
+| `pgyer apps info <appKey> --build <buildKey>` | Show a specific historical build |
+| `pgyer apps resolve <shortcut>` | Resolve a shortcut or full PGYER URL |
+| `pgyer apps update <appKey> [options]` | Merge selected settings into the current app configuration |
+| `pgyer apps delete <appKey>` | Permanently delete an app and all of its builds |
+
+Examples:
+
+```bash
+pgyer apps resolve PgY8
+pgyer apps resolve https://www.pgyer.com/PgY8
+
+pgyer apps info <appKey> --build <buildKey>
+pgyer apps update <appKey> --language auto --auto-sync on
+pgyer apps delete <appKey> --dry-run
+```
+
+### App settings
+
+`apps update` reads the current app settings first and submits a merged update,
+so omitted fields are preserved.
+
+| Option | Accepted values | Description |
+| --- | --- | --- |
+| `--shortcut <shortcut>` | String | Change the download-page shortcut |
+| `--install <type>` | `public`, `password`, `invite` | Change the installation policy |
+| `--password <password>` | String | Set the installation password |
+| `--password-env <name>` | Environment variable | Read the installation password without exposing it in shell history |
+| `--valid-from <YYYY-MM-DD>` | Date | Start installation validity |
+| `--valid-until <YYYY-MM-DD>` | Date | End installation validity |
+| `--no-expiry` | — | Disable installation expiration |
+| `--language <language>` | `zh`, `en`, `auto` | Set the download-page language |
+| `--version-source <source>` | `pgyer`, `app` | Select PGYER or package metadata as the version source |
+| `--auto-sync <state>` | `on`, `off` | Toggle automatic app-information synchronization |
+| `--copyright <state>` | `on`, `off` | Show or hide PGYER copyright information |
+| `--dry-run` | — | Validate and display the proposed update without modifying the app |
+
+### Versions
+
+| Command | Description |
+| --- | --- |
+| `pgyer versions list <appKey>` | List the first page of historical builds |
+| `pgyer versions list <appKey> --all` | Fetch all historical-build pages |
+| `pgyer versions set-latest <buildKey>` | Mark a build as the latest version |
+| `pgyer versions unset-latest <buildKey>` | Remove the explicit latest-version mark |
+| `pgyer versions check <appKey>` | Query PGYER update information |
+| `pgyer versions delete <buildKey>` | Permanently delete one historical build |
+
+Update-check context can be supplied explicitly:
+
+```bash
+pgyer versions check <appKey> \
+  --current-version 1.2.0 \
+  --build-version 42 \
+  --channel beta
+```
+
+State-changing version commands support `--dry-run`. Version deletion is
+irreversible and requires confirmation or `--force`.
+
+## Output and Automation
+
+The default output is concise and readable for both people and AI agents. Use
+`--json` only when a script or integration requires deterministic parsing.
+
+```bash
+# Default readable output
+pgyer apps list
+
+# Explicit machine-readable output
+pgyer apps list --all --json | jq '.apps | length'
+```
+
+Successful JSON output is command-specific and is not wrapped in a universal
+envelope. JSON errors use a stable structure on stderr:
+
+```json
+{
+  "error": {
+    "code": "AUTH_REQUIRED",
+    "message": "API Key is required",
+    "retryable": false,
+    "hint": "Run pgyer auth login or set PGYER_API_KEY"
+  }
+}
+```
+
+Automation guarantees:
+
+- Successful results are written to stdout; errors are written to stderr.
+- Failed commands exit with a non-zero status.
+- `--json` never prompts for input.
+- A process without an interactive stdin never prompts for confirmation.
+- Destructive commands require explicit `--force` when confirmation is unavailable.
+- App updates and destructive operations provide `--dry-run` where applicable.
+
+`--human` / `-H` remains available as an explicit compatibility option. If
+`--human` and `--json` are both present, `--human` takes precedence.
+
+## Authentication and Security
+
+Authentication sources are resolved in this order:
+
+1. `PGYER_API_KEY` environment variable
+2. Credentials saved by `pgyer auth login`
+
+Saved credentials are stored at:
+
+```text
+~/.config/pgyer/config.json
+```
+
+The CLI sets this file to mode `600` where supported. Tokens are redacted by
+default, installation passwords can be read from environment variables, and
+sensitive values are not included in normal success or error output.
+
+## Development
+
+```bash
+npm install
+npm run typecheck
+npm test
+npm run build
+```
+
+The packaged executable is generated at `dist/index.js`.
+
+## Documentation
+
+- [PGYER API documentation](https://www.pgyer.com/doc/view/api)
+- [Technical specification](./docs/TECH_SPEC.md)
+
+## License
+
+MIT
