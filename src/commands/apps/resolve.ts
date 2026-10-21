@@ -1,5 +1,6 @@
-import { loadConfig, createApiClient, ApiError } from '../../core';
-import { createLogger } from '../../utils/logger';
+import { loadConfig, createApiClient } from '../../core';
+import { normalizeShortcut } from '../../core/apps';
+import { createLogger, reportError } from '../../utils/logger';
 import { createSpinner } from '../../utils/spinner';
 
 interface ShortcutApp {
@@ -16,18 +17,6 @@ interface ShortcutApp {
   buildDescription?: string;
   buildUpdateDescription?: string;
   buildShortcutUrl: string;
-}
-
-function normalizeShortcut(value: string): string {
-  const trimmed = value.trim().replace(/\/+$/, '');
-  if (!trimmed) throw new Error('Shortcut cannot be empty');
-  if (/^https?:\/\//i.test(trimmed)) {
-    const url = new URL(trimmed);
-    const shortcut = url.pathname.split('/').filter(Boolean).pop();
-    if (!shortcut) throw new Error('The URL does not contain an app shortcut');
-    return shortcut;
-  }
-  return trimmed.split('/').filter(Boolean).pop() ?? trimmed;
 }
 
 export async function handleAppsResolve(shortcutInput: string): Promise<void> {
@@ -61,8 +50,7 @@ export async function handleAppsResolve(shortcutInput: string): Promise<void> {
     logger.json(output);
   } catch (error) {
     spinner.fail('Failed to resolve app shortcut');
-    if (error instanceof ApiError) logger.error(`[${error.code}] ${error.message}`);
-    else logger.error(error instanceof Error ? error.message : 'Unknown error');
+    reportError(error);
     process.exit(1);
   }
 }

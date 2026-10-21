@@ -24,10 +24,11 @@
 ```json
 {
   "apiKey": "xxx",
-  "apiUrl": "https://api.pgyer.com",
   "outputFormat": "json"
 }
 ```
+
+`apiUrl` 可选。不设置时按 [API 规范](./api.md) 依次尝试 `https://www.pgyer.com`、`https://www.xcxwo.com`、`https://www.pgyerapp.com`；设置后只使用该地址（例如私有部署或测试服务器），不做域名切换。
 
 **行为**:
 

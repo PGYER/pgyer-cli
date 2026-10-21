@@ -4,7 +4,8 @@
 
 面向[蒲公英](https://www.pgyer.com/)应用分发平台的现代化命令行工具。支持通过 API 2.0
 快速上传 IPA、APK 和 HAP 安装包，管理应用与历史构建，并可用于 CI 和 AI Agent
-自动化流程。
+自动化流程。内置 MCP 服务器（`pgyer mcp`），Claude、Cursor、VS Code、Codex 等
+AI 客户端可以直接调用。
 
 ## 核心能力
 
@@ -16,10 +17,12 @@
 - 支持历史版本、更新检查、最新版控制和版本删除
 - 默认输出适合真人与 AI Agent 阅读，自动化场景可显式使用 JSON
 - 支持非交互保护、`--dry-run`、凭证脱敏和稳定错误结构
+- 内置 MCP 服务器，AI 客户端可直接上传和管理应用
+- 主域名无法访问时自动切换备用域名
 
 ## 环境要求
 
-- Node.js 18 或更高版本
+- Node.js 20.19 或更高版本
 - 蒲公英账号或 API Key
 
 ## 安装
@@ -69,8 +72,8 @@ pgyer upload ./app-release.apk --json
 # 自动选择上传区域
 pgyer upload ./app.apk
 
-# 使用国内上传节点，最长等待 10 分钟
-pgyer upload ./app.hap --upload-region domestic --timeout 600
+# 使用国内上传节点，上传完成后最长等待解析 15 分钟
+pgyer upload ./app.hap --upload-region domestic --timeout 900
 
 # 添加版本更新说明
 pgyer upload ./app.ipa \
@@ -90,10 +93,15 @@ export RELEASE_INSTALL_PASSWORD="replace-with-a-secret"
 pgyer upload ./app.apk --password-env RELEASE_INSTALL_PASSWORD
 
 pgyer upload ./app.apk --invite-install
+pgyer upload ./app.apk --install-type public
 pgyer upload ./app.ipa --pubstart 2026-08-01 --pubend 2026-12-31
 ```
 
 `--pubstart` 和 `--pubend` 必须同时使用，结束日期必须晚于开始日期。
+
+上传只发送你指定的设置。没有指定 `--install-type`、`--password` 或 `--invite-install`
+时，应用保持当前的安装方式（0.1.x 会把它重置为公开安装）；需要公开安装时请使用
+`--install-type public`。
 
 ### 上传参数
 
@@ -101,6 +109,7 @@ pgyer upload ./app.ipa --pubstart 2026-08-01 --pubend 2026-12-31
 | --- | --- |
 | `--description <text>` | 设置应用介绍 |
 | `--build-update-description <text>` | 设置本次构建的版本更新说明 |
+| `--install-type <type>` | 安装方式：`public`、`password` 或 `invite`；默认保持应用当前设置 |
 | `--password <password>` | 使用密码安装 |
 | `--password-env [name]` | 从环境变量读取密码，默认读取 `PGYER_INSTALL_PASSWORD` |
 | `--invite-install` | 限制为受邀用户安装 |
@@ -108,12 +117,15 @@ pgyer upload ./app.ipa --pubstart 2026-08-01 --pubend 2026-12-31
 | `--pubend <YYYY-MM-DD>` | 设置安装有效期结束日期 |
 | `--short <shortcut>` | 设置渠道短链接 |
 | `--upload-region <region>` | 选择 `auto`、`domestic` 或 `overseas`，默认 `auto` |
-| `--timeout <seconds>` | 设置上传和解析总超时，默认 `300` 秒 |
-| `--poll-interval <seconds>` | 设置构建解析轮询间隔，默认 `4` 秒 |
+| `--timeout <seconds>` | 文件上传完成后等待蒲公英解析的最长时间，默认 `600` 秒 |
+| `--poll-interval <seconds>` | 设置构建解析轮询间隔，默认 `3` 秒 |
 | `--no-wait` | 文件上传成功后立即返回，不等待蒲公英解析 |
 
 快速上传不支持旧版 `--app-key` 参数。蒲公英会根据安装包的包标识符，将新构建关联到
 对应应用。
+
+文件上传本身没有总时长限制（5 分钟内没有任何数据收发时才会中止）。解析超时后，
+错误信息会给出构建 key，可以用 `pgyer uploads wait <key>` 继续等待。
 
 ## 异步上传
 
@@ -132,11 +144,85 @@ pgyer uploads status "$UPLOAD_KEY" --json
 # 持续轮询，直到发布完成或超时
 pgyer uploads wait "$UPLOAD_KEY" \
   --timeout 600 \
-  --poll-interval 4 \
+  --poll-interval 3 \
   --json
 ```
 
 `uploads status` 只请求一次；`uploads wait` 会持续轮询，直到构建发布或达到超时时间。
+
+## AI 客户端（MCP）
+
+`pgyer mcp` 在 stdio 上启动 [MCP](https://modelcontextprotocol.io) 服务器，让 AI 客户端
+直接上传安装包、查询应用和版本。认证方式与 CLI 相同：优先读取 `PGYER_API_KEY`，
+否则使用 `pgyer auth login` 保存的凭证。API Key 可在
+[蒲公英 API 页面](https://www.pgyer.com/account/api) 获取。
+
+下面的配置使用 `npx -y @pgyer/cli mcp`，无需预先安装。已全局安装 CLI 并登录时，
+也可以把命令换成 `pgyer mcp` 并省略 `PGYER_API_KEY`。旧配置中的
+`npx -y pgyer-mcp-server` 会启动同一个服务器，可以继续使用。
+
+**Claude Code**
+
+```bash
+claude mcp add pgyer --env PGYER_API_KEY=<your_api_key> -- npx -y @pgyer/cli mcp
+```
+
+**Claude Desktop**（`claude_desktop_config.json`）与 **Cursor**（`~/.cursor/mcp.json` 或项目内 `.cursor/mcp.json`）
+
+```json
+{
+  "mcpServers": {
+    "pgyer": {
+      "command": "npx",
+      "args": ["-y", "@pgyer/cli", "mcp"],
+      "env": { "PGYER_API_KEY": "<your_api_key>" }
+    }
+  }
+}
+```
+
+**VS Code**（`.vscode/mcp.json`，启动时提示输入 API Key）
+
+```json
+{
+  "inputs": [
+    { "type": "promptString", "id": "pgyer-api-key", "description": "PGYER API Key", "password": true }
+  ],
+  "servers": {
+    "pgyer": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@pgyer/cli", "mcp"],
+      "env": { "PGYER_API_KEY": "${input:pgyer-api-key}" }
+    }
+  }
+}
+```
+
+**Codex**（`~/.codex/config.toml`；上传大文件时需要调大默认 60 秒的工具超时）
+
+```toml
+[mcp_servers.pgyer]
+command = "npx"
+args = ["-y", "@pgyer/cli", "mcp"]
+env = { PGYER_API_KEY = "<your_api_key>" }
+tool_timeout_sec = 900
+```
+
+### MCP 工具
+
+| 工具 | 作用 | 只读 | 覆盖已有状态 |
+| --- | --- | --- | --- |
+| `upload_app` | 上传 .apk/.ipa/.hap，返回下载页地址和二维码；支持全部上传设置，上传和解析期间发送进度通知 | 否 | 否 |
+| `get_upload_status` | 按 buildKey 查询解析结果（解析超时后使用） | 是 | 否 |
+| `list_apps` | 分页列出应用 | 是 | 否 |
+| `get_app` | 按 appKey 或短链接查询应用详情 | 是 | 否 |
+| `list_versions` | 分页列出应用的历史版本 | 是 | 否 |
+| `set_latest_version` | 设置或取消最新版 | 否 | 是 |
+| `update_app_settings` | 修改短链接、安装方式、有效期、页面语言等设置，未指定的设置保持不变 | 否 | 是 |
+
+MCP 服务器不提供删除工具，也不会返回安装密码。stdout 只输出 MCP 协议消息，
+诊断信息写入 stderr。
 
 ## 命令参考
 
@@ -273,6 +359,14 @@ pgyer apps list --all --json | jq '.apps | length'
 在操作系统支持时，CLI 会将该文件权限设置为 `600`。Token 默认脱敏显示，安装密码可从
 环境变量读取，正常成功或错误输出不会包含敏感值。
 
+API Key 只放在 POST 请求正文中，不会出现在任何 URL 里。CLI 依次使用
+`https://www.pgyer.com`、`https://www.xcxwo.com`、`https://www.pgyerapp.com`：只有网络
+错误或非 JSON 响应（例如 DNS 劫持页面）才会切换到下一个域名。需要固定使用其他地址时，
+可以在配置文件中设置 `"apiUrl"`，此时不再切换。
+
+每个请求都带有 `pgyer-cli/<版本> Node/<版本>` 的 User-Agent；`pgyer mcp` 发出的请求以
+`pgyer-mcp-server/<版本>` 开头。
+
 ## 本地开发
 
 ```bash
@@ -282,7 +376,7 @@ npm test
 npm run build
 ```
 
-打包后的可执行文件位于 `dist/index.js`。
+打包后的可执行文件位于 `dist/index.js`，MCP 服务器入口（`@pgyer/cli/mcp`）位于 `dist/mcp.js`。
 
 ## 相关文档
 

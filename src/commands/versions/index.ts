@@ -1,6 +1,6 @@
 import { type CAC } from 'cac';
-import { loadConfig, createApiClient, ApiError } from '../../core';
-import { createLogger, isHuman } from '../../utils/logger';
+import { loadConfig, createApiClient } from '../../core';
+import { createLogger, isHuman, reportError } from '../../utils/logger';
 import { createSpinner } from '../../utils/spinner';
 import { confirmDestructiveAction } from '../../utils/confirm';
 
@@ -229,8 +229,6 @@ export function registerVersionCommands(cli: CAC): void {
 function handleVersionError(error: unknown): never {
   const spinner = createSpinner('Version command failed');
   spinner.fail('Version command failed');
-  const logger = createLogger();
-  if (error instanceof ApiError) logger.error(`[${error.code}] ${error.message}`);
-  else logger.error(error instanceof Error ? error.message : 'Unknown error');
+  reportError(error);
   process.exit(1);
 }

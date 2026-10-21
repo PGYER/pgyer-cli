@@ -10,4 +10,5 @@
 - [API 规范](./spec/api.md) - 网络请求封装与 API 接口
 - [API 2.0 能力扩展](./spec/api2-expansion.md) - 快速上传、版本管理与应用设置
 - [Human 与 JSON 自动化模式](./spec/automation-mode.md) - 输出协议与非交互安全
+- [MCP 服务器](./spec/mcp.md) - `pgyer mcp` 工具、认证与协议约束
 - [发布流程](./spec/release.md) - GitHub Actions 自动发布到 npm

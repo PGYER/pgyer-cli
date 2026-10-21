@@ -1,7 +1,7 @@
 {
   "name": "@pgyer/cli",
-  "version": "0.1.5",
-  "description": "CLI tool for PGYER app distribution platform",
+  "version": "0.2.0",
+  "description": "CLI and MCP server for the PGYER app distribution platform",
   "keywords": [
     "pgyer",
     "cli",
@@ -9,10 +9,21 @@
     "distribution",
     "ipa",
     "apk",
-    "hap"
+    "hap",
+    "mcp",
+    "mcp-server",
+    "model-context-protocol"
   ],
   "author": "PGYER Team",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PGYER/pgyer-cli.git"
+  },
+  "homepage": "https://github.com/PGYER/pgyer-cli#readme",
+  "bugs": {
+    "url": "https://github.com/PGYER/pgyer-cli/issues"
+  },
   "type": "commonjs",
   "bin": {
     "pgyer": "dist/index.js"
@@ -20,15 +31,20 @@
   "main": "./dist/index.js",
   "exports": {
     ".": {
-      "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp.d.ts",
+      "default": "./dist/mcp.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.19.0"
   },
   "scripts": {
     "build": "tsup",
@@ -39,13 +55,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "^2.3.1",
     "cac": "^6.7.14",
-    "form-data": "^4.0.6",
     "open": "^10.1.0",
     "ora": "^8.2.0",
-    "picocolors": "^1.1.1"
+    "picocolors": "^1.1.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.3.1",
     "@types/node": "^22.14.0",
     "tsup": "^8.4.0",
     "tsx": "^4.7.0",

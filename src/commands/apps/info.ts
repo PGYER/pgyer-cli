@@ -1,5 +1,5 @@
-import { loadConfig, createApiClient, ApiError } from '../../core';
-import { createLogger, isHuman } from '../../utils/logger';
+import { loadConfig, createApiClient } from '../../core';
+import { createLogger, isHuman, reportError } from '../../utils/logger';
 import { createSpinner } from '../../utils/spinner';
 
 interface AppDetail {
@@ -118,13 +118,7 @@ export async function handleAppsInfo(appKey: string, buildKey?: string): Promise
     }
   } catch (error) {
     spinner.fail('Failed to fetch app info');
-    if (error instanceof ApiError) {
-      logger.error(`[${error.code}] ${error.message}`);
-    } else {
-      const message =
-        error instanceof Error ? error.message : 'Unknown error';
-      logger.error(message);
-    }
+    reportError(error);
     process.exit(1);
   }
 }

@@ -164,22 +164,26 @@ App: MyApp (com.example.app)
 - `--app-key <key>` - 兼容保留；新版接口不支持，使用时返回明确错误
 - `--description <text>` - 应用介绍
 - `--build-update-description <desc>` - 版本更新说明
+- `--install-type <type>` - 安装方式：`public`、`password` 或 `invite`
 - `--password <pwd>` - 安装密码（设置安装类型为密码安装）
+- `--password-env [name]` - 从环境变量读取安装密码，默认 `PGYER_INSTALL_PASSWORD`
 - `--invite-install` - 设置安装类型为邀请安装（不能与 --password 同时使用）
 - `--pubstart <date>` - 安装有效期开始日期（格式：YYYY-MM-DD）
 - `--pubend <date>` - 安装有效期结束日期（格式：YYYY-MM-DD）
 - `--short <shortcut>` - 渠道短链接
 - `--upload-region <auto|overseas|domestic>` - 上传区域
-- `--timeout <seconds>` - 上传及解析总超时，默认 300 秒
-- `--poll-interval <seconds>` - 解析轮询间隔，默认 4 秒
+- `--timeout <seconds>` - 文件上传完成后等待处理的最长时间，默认 600 秒
+- `--poll-interval <seconds>` - 解析轮询间隔，默认 3 秒
 - `--no-wait` - 文件上传成功后立即返回上传 key
 
 **安装类型判断逻辑**:
 
 1. 若 `--invite-install` 和 `--password` 同时使用，报错
-2. 若 `--invite-install` 存在，则为邀请安装（type=3）
-3. 若 `--password` 有值，则为密码安装（type=2）
-4. 其他情况为公开安装（type=1）
+2. 若 `--install-type` 与 `--invite-install`/密码矛盾（如 `--install-type public --password x`），报错
+3. 若 `--install-type` 存在，使用该值
+4. 若 `--invite-install` 存在，则为邀请安装（type=3）
+5. 若有密码，则为密码安装（type=2）
+6. 其他情况不发送 `buildInstallType`，应用保持当前安装方式
 
 **有效期校验规则**:
 
@@ -200,7 +204,7 @@ App: MyApp (com.example.app)
   URL: https://www.pgyer.com/xxx
 ```
 
-快速上传由 `getCOSToken`、向动态 COS endpoint 流式上传、`buildInfo` 轮询三步组成。存储上传必须返回 HTTP 204；`buildInfo` 返回 1247 表示继续解析。
+快速上传由 `getCOSToken`、向动态 COS endpoint 流式上传、`buildInfo` 轮询三步组成。存储上传返回任意 2xx 即成功；`buildInfo` 返回 1246/1247 表示继续解析。详细规则见 [API 2.0 能力扩展](./api2-expansion.md)。
 
 ---
 
@@ -226,3 +230,11 @@ pgyer apps update <appKey> [settings]
 ```
 
 `apps update` 必须先读取当前配置后合并用户明确指定的字段，以避免 API 的全量更新语义覆盖未修改设置。
+
+---
+
+## mcp 模块
+
+### `pgyer mcp`
+
+在 stdio 上启动 MCP 服务器，供 AI 客户端调用。工具、认证、User-Agent 与 stdout 约束见 [MCP 服务器](./mcp.md)。该命令没有额外选项，也不读取 `--json`/`--human`。
