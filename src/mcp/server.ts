@@ -87,7 +87,7 @@ const appOutput = z.object({
   iconUrl: z.string().optional(),
   fileName: z.string().optional(),
   fileSize: z.number().optional(),
-  isLatest: z.boolean().optional().describe('Whether this build is the one the download page serves'),
+  isLatest: z.boolean().optional().describe('Whether this build carries PGYER\'s latest-version mark'),
   description: z.string().optional(),
   updateDescription: z.string().optional(),
   createdAt: z.string().optional(),
@@ -572,7 +572,7 @@ export function createPgyerMcpServer(options: PgyerMcpServerOptions = {}): McpSe
       title: 'List app versions',
       description:
         'List the uploaded versions (builds) of an app, newest first, by appKey or shortcut. ' +
-        'isLatest marks the build the download page serves. Use page to see older builds.',
+        'isLatest shows which build carries PGYER\'s latest-version mark. Use page to see older builds.',
       inputSchema: z.object({
         appKey: z.string().min(1).optional().describe('App key'),
         shortcut: z.string().min(1).optional().describe('Download page shortcut or URL'),
@@ -635,8 +635,8 @@ export function createPgyerMcpServer(options: PgyerMcpServerOptions = {}): McpSe
     {
       title: 'Set latest version',
       description:
-        'Make a build the latest version of its app, which is the one the app\'s download page serves to testers (latest: true, the default). ' +
-        'With latest: false, remove the latest mark from that build instead. Get build keys from list_versions.',
+        'Mark a build as the latest version of its app (latest: true, the default), or remove the latest-version mark from it (latest: false). ' +
+        'Get build keys from list_versions. Ask the user before changing which build is marked latest.',
       inputSchema: z.object({
         buildKey: z.string().min(1).describe('Build to change'),
         latest: z.boolean().optional().describe('true (default): set as latest. false: remove the latest mark.'),
