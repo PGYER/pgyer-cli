@@ -63,7 +63,7 @@ pgyer-mcp-server/<cli version> pgyer-cli/<cli version> Node/<process.version>
 
 处理超时不视为失败：返回 `status=processing` 与 `buildKey`，提示稍后调用 `get_upload_status`。
 
-进度：如果客户端在请求 `_meta.progressToken` 中提供了 token，服务器发送 `notifications/progress`（total=100）：获取凭证 1%，文件上传 1–90%（按字节，至少每 5% 一次），等待处理 90–99%，发布完成 100%。客户端取消请求时中止上传或轮询。
+进度：如果客户端在请求 `_meta.progressToken` 中提供了 token，服务器发送 `notifications/progress`（total=100）：获取凭证 1%，文件上传 1–89%（按字节，最多每 5% 一次），等待处理 90–99%（按已等待时间占处理超时的比例），发布完成 100%。客户端取消请求时中止上传或轮询。
 
 ### `get_upload_status`
 
@@ -71,7 +71,7 @@ pgyer-mcp-server/<cli version> pgyer-cli/<cli version> Node/<process.version>
 
 ### `list_apps`
 
-输入：`page`（默认 1，每页 20 个）。输出：`page`、`pageCount`、`totalApps`、`apps[]`（`appKey`、`name`、`platform`、`version`、`buildNumber`、`identifier`、`shortcut`、`downloadPageUrl`、`latestBuildKey`、`updatedAt`）。不返回安装密码。
+输入：`page`（默认 1，每页 20 个）。输出：`page`、`pageCount`、`totalApps`、`apps[]`（`appKey`、`name`、`platform`、`version`、`buildNumber`、`identifier`、`shortcut`、`downloadPageUrl`、`latestBuildKey`、`lastUploadAt`）。不返回安装密码。
 
 ### `get_app`
 

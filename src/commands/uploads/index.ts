@@ -1,6 +1,6 @@
 import { type CAC } from 'cac';
-import { ApiError, FastUploader, loadConfig, type UploadStatusResult } from '../../core';
-import { createLogger, isHuman } from '../../utils/logger';
+import { FastUploader, loadConfig, type UploadStatusResult } from '../../core';
+import { createLogger, isHuman, reportError } from '../../utils/logger';
 import { createSpinner } from '../../utils/spinner';
 
 interface WaitOptions {
@@ -46,9 +46,7 @@ function outputStatus(result: UploadStatusResult): void {
 }
 
 function handleError(error: unknown): never {
-  const logger = createLogger();
-  if (error instanceof ApiError) logger.error(`[${error.code}] ${error.message}`);
-  else logger.error(error instanceof Error ? error.message : 'Unknown error');
+  reportError(error);
   process.exit(1);
 }
 
@@ -68,16 +66,16 @@ export function registerUploadStatusCommands(cli: CAC): void {
   cli
     .command('uploads:wait <uploadKey>', 'Wait for an asynchronous upload to finish')
     .usage('uploads wait <uploadKey> [options]')
-    .option('--timeout <seconds>', 'Maximum wait time in seconds', { default: 300 })
-    .option('--poll-interval <seconds>', 'Polling interval in seconds', { default: 4 })
+    .option('--timeout <seconds>', 'Maximum wait time in seconds', { default: 600 })
+    .option('--poll-interval <seconds>', 'Polling interval in seconds', { default: 3 })
     .action(async (uploadKey: string, options: WaitOptions) => {
       const spinner = createSpinner('Waiting for app processing...');
       try {
         spinner.start();
         const uploader = new FastUploader(loadConfig());
         const result = await uploader.waitForBuild(uploadKey, {
-          timeoutMs: parseSeconds(options.timeout, 300, '--timeout'),
-          pollIntervalMs: parseSeconds(options.pollInterval, 4, '--poll-interval'),
+          timeoutMs: parseSeconds(options.timeout, 600, '--timeout'),
+          pollIntervalMs: parseSeconds(options.pollInterval, 3, '--poll-interval'),
           onStatus: (status) => spinner.text(status),
         });
         spinner.succeed('App processing completed');

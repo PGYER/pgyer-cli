@@ -1,5 +1,6 @@
-import { loadConfig, createApiClient, ApiError } from '../../core';
-import { createLogger, isHuman } from '../../utils/logger';
+import { loadConfig, createApiClient } from '../../core';
+import { AppSettingsError, updateAppSettings, type AppSettingsChange } from '../../core/apps';
+import { createLogger, isHuman, reportError } from '../../utils/logger';
 import { createSpinner } from '../../utils/spinner';
 
 export interface AppsUpdateOptions {
@@ -17,20 +18,11 @@ export interface AppsUpdateOptions {
   dryRun?: boolean;
 }
 
-interface CurrentAppSettings {
-  buildInstallType?: number | string;
-  buildPassword?: string;
-  buildShortcutUrl?: string;
-  appIsInstallDate?: number | string;
-  appInstallStartDate?: string;
-  appInstallEndDate?: string;
-  appLang?: number | string;
-  buildVersionType?: number | string;
-  appAutoSync?: number | string;
-  appShowPgyerCopyright?: number | string;
-}
-
-function parseEnum(value: string | undefined, values: Record<string, number>, name: string): number | undefined {
+function parseEnum<T extends string>(
+  value: string | undefined,
+  values: Record<string, T>,
+  name: string
+): T | undefined {
   if (value === undefined) return undefined;
   const result = values[value];
   if (result === undefined) {
@@ -39,8 +31,9 @@ function parseEnum(value: string | undefined, values: Record<string, number>, na
   return result;
 }
 
-function parseToggle(value: string | undefined, name: string): number | undefined {
-  return parseEnum(value, { on: 1, off: 2 }, name);
+function parseToggle(value: string | undefined, name: string): boolean | undefined {
+  const result = parseEnum(value, { on: 'on', off: 'off' } as const, name);
+  return result === undefined ? undefined : result === 'on';
 }
 
 function validateDate(value: string, name: string): void {
@@ -91,86 +84,58 @@ export async function handleAppsUpdate(appKey: string, options: AppsUpdateOption
       throw new Error(`Environment variable ${passwordEnvName} is empty or not set`);
     }
     const requestedPassword = options.password ?? envPassword;
-    const api = createApiClient(loadConfig());
-    spinner.start('Fetching current app settings...');
-    const current = await api.request<CurrentAppSettings>({
-      method: 'POST',
-      path: '/apiv2/app/view',
-      params: { appKey },
-    });
-
-    const requestedInstallType = parseEnum(
+    const installType = parseEnum(
       options.install,
-      { public: 1, password: 2, invite: 3 },
+      { public: 'public', password: 'password', invite: 'invite' } as const,
       '--install'
     );
-    const buildInstallType = requestedInstallType
-      ?? (requestedPassword !== undefined ? 2 : Number(current.buildInstallType ?? 1));
-    const buildPassword = requestedPassword !== undefined
-      ? requestedPassword
-      : (buildInstallType === 2 ? current.buildPassword : '');
-    if (buildInstallType === 2 && !buildPassword) {
-      throw new Error('Password installation requires --password or an existing password');
-    }
-    if (requestedPassword !== undefined && buildInstallType !== 2) {
-      throw new Error('--password can only be used with --install password');
-    }
-
-    const appIsInstallDate = options.expiry === false
-      ? 2
-      : (options.validFrom ? 1 : Number(current.appIsInstallDate ?? 2));
-
-    const updateParams = {
-        appKey,
-        buildShortcutUrl: options.shortcut ?? current.buildShortcutUrl,
-        buildInstallType,
-        buildPassword,
-        appIsInstallDate,
-        appInstallStartDate: options.validFrom ?? current.appInstallStartDate,
-        appInstallEndDate: options.validUntil ?? current.appInstallEndDate,
-        appLang: parseEnum(options.language, { zh: 1, en: 2, auto: 3 }, '--language')
-          ?? current.appLang,
-        buildVersionType: parseEnum(
-          options.versionSource,
-          { pgyer: 1, app: 2 },
-          '--version-source'
-        ) ?? current.buildVersionType,
-        appAutoSync: parseToggle(options.autoSync, '--auto-sync') ?? current.appAutoSync,
-        appShowPgyerCopyright: parseToggle(options.copyright, '--copyright')
-          ?? current.appShowPgyerCopyright,
+    const change: AppSettingsChange = {
+      shortcut: options.shortcut,
+      installType,
+      password: requestedPassword,
+      validFrom: options.validFrom,
+      validUntil: options.validUntil,
+      noExpiry: options.expiry === false,
+      language: parseEnum(options.language, { zh: 'zh', en: 'en', auto: 'auto' } as const, '--language'),
+      versionSource: parseEnum(
+        options.versionSource,
+        { pgyer: 'pgyer', app: 'app' } as const,
+        '--version-source'
+      ),
+      autoSync: parseToggle(options.autoSync, '--auto-sync'),
+      showCopyright: parseToggle(options.copyright, '--copyright'),
     };
+    const api = createApiClient(loadConfig());
+    spinner.start('Fetching current app settings...');
+    let result: { updated: string[]; dryRun: boolean };
+    try {
+      result = await updateAppSettings(api, appKey, change, {
+        dryRun: options.dryRun,
+        onStatus: (status) => spinner.text(status),
+      });
+    } catch (error) {
+      if (error instanceof AppSettingsError) {
+        throw new Error(error.code === 'PASSWORD_REQUIRED'
+          ? 'Password installation requires --password or an existing password'
+          : '--password can only be used with --install password');
+      }
+      throw error;
+    }
 
-    const updated = [
-      options.shortcut !== undefined ? 'shortcut' : undefined,
-      options.install !== undefined || requestedPassword !== undefined ? 'installation' : undefined,
-      options.validFrom !== undefined || options.expiry === false ? 'validity' : undefined,
-      options.language !== undefined ? 'language' : undefined,
-      options.versionSource !== undefined ? 'versionSource' : undefined,
-      options.autoSync !== undefined ? 'autoSync' : undefined,
-      options.copyright !== undefined ? 'copyright' : undefined,
-    ].filter((value): value is string => value !== undefined);
-
-    if (options.dryRun) {
+    if (result.dryRun) {
       spinner.stop();
-      logger.json({ dryRun: true, action: 'updateApp', appKey, updated });
+      logger.json({ dryRun: true, action: 'updateApp', appKey, updated: result.updated });
       return;
     }
 
-    spinner.text('Updating app settings...');
-    await api.request<Record<string, unknown>>({
-      method: 'POST',
-      path: '/apiv2/app/update',
-      params: updateParams,
-    });
     spinner.succeed('App settings updated');
     if (isHuman()) logger.success(`App ${appKey} updated successfully`);
     else {
-      logger.json({ success: true, appKey, updated });
+      logger.json({ success: true, appKey, updated: result.updated });
     }
   } catch (error) {
     spinner.fail('Failed to update app settings');
-    if (error instanceof ApiError) logger.error(`[${error.code}] ${error.message}`);
-    else logger.error(error instanceof Error ? error.message : 'Unknown error');
+    reportError(error);
     process.exit(1);
   }
 }

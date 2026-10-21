@@ -1,12 +1,13 @@
 import { type CAC } from 'cac';
 import * as fs from 'fs';
 import * as path from 'path';
-import { loadConfig, FastUploader, ApiError } from '../../core';
-import { createLogger, isHuman } from '../../utils/logger';
+import { loadConfig, FastUploader } from '../../core';
+import { createLogger, isHuman, reportError } from '../../utils/logger';
 import { createSpinner } from '../../utils/spinner';
 
 interface UploadCliOptions {
   appKey?: string;
+  installType?: string;
   description?: string;
   buildUpdateDescription?: string;
   password?: string;
@@ -43,6 +44,21 @@ function parseUploadRegion(value: string | undefined): 1 | 2 | undefined {
   }
 }
 
+function parseInstallType(value: string | undefined): 1 | 2 | 3 | undefined {
+  switch (value) {
+    case undefined:
+      return undefined;
+    case 'public':
+      return 1;
+    case 'password':
+      return 2;
+    case 'invite':
+      return 3;
+    default:
+      throw new Error('--install-type must be public, password, or invite');
+  }
+}
+
 function validateDate(value: string, name: string): void {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) {
     throw new Error(`${name} must use YYYY-MM-DD format`);
@@ -56,6 +72,7 @@ export function registerUploadCommand(cli: CAC): void {
     .option('--app-key <key>', 'Deprecated: not supported by the fast upload API')
     .option('--description <text>', 'App description')
     .option('--build-update-description <desc>', 'Version update description')
+    .option('--install-type <type>', 'Install type: public, password, or invite (default: keep the app setting)')
     .option('--password <pwd>', 'Install password (sets install type to password)')
     .option('--password-env [name]', 'Read install password from an environment variable')
     .option('--invite-install', 'Set install type to invite (cannot be used with --password)')
@@ -63,8 +80,8 @@ export function registerUploadCommand(cli: CAC): void {
     .option('--pubend <date>', 'Install validity end date (YYYY-MM-DD)')
     .option('--short <shortcut>', 'Channel shortcut')
     .option('--upload-region <region>', 'Upload region: auto, overseas, or domestic')
-    .option('--timeout <seconds>', 'Upload and processing timeout in seconds', { default: 300 })
-    .option('--poll-interval <seconds>', 'Build processing poll interval in seconds', { default: 4 })
+    .option('--timeout <seconds>', 'Seconds to wait for PGYER to process the build after the upload', { default: 600 })
+    .option('--poll-interval <seconds>', 'Build processing poll interval in seconds', { default: 3 })
     .option('--no-wait', 'Return after file upload without waiting for processing')
     .action(async (file: string, options: UploadCliOptions) => {
       const logger = createLogger();
@@ -91,6 +108,15 @@ export function registerUploadCommand(cli: CAC): void {
         if (options.inviteInstall && installPassword) {
           throw new Error('--invite-install and --password cannot be used together');
         }
+        const requestedInstallType = parseInstallType(options.installType);
+        if (requestedInstallType !== undefined) {
+          if (options.inviteInstall && requestedInstallType !== 3) {
+            throw new Error('--install-type and --invite-install cannot be used together');
+          }
+          if (installPassword && requestedInstallType !== 2) {
+            throw new Error('--password can only be used with --install-type password');
+          }
+        }
         if ((options.pubstart && !options.pubend) || (!options.pubstart && options.pubend)) {
           throw new Error('--pubstart and --pubend must be used together');
         }
@@ -110,9 +136,11 @@ export function registerUploadCommand(cli: CAC): void {
           throw new Error(`Path is not a file: ${filePath}`);
         }
 
-        let buildInstallType = 1;
-        if (options.inviteInstall) buildInstallType = 3;
-        else if (installPassword) buildInstallType = 2;
+        // Only send an install type the user asked for, so PGYER keeps the
+        // app's current setting otherwise. A password on its own means 2.
+        let buildInstallType = requestedInstallType;
+        if (buildInstallType === undefined && options.inviteInstall) buildInstallType = 3;
+        else if (buildInstallType === undefined && installPassword) buildInstallType = 2;
 
         const uploader = new FastUploader(loadConfig());
         spinner.start();
@@ -127,8 +155,8 @@ export function registerUploadCommand(cli: CAC): void {
           buildInstallEndDate: options.pubend,
           buildChannelShortcut: options.short,
           oversea: parseUploadRegion(options.uploadRegion),
-          timeoutMs: parsePositiveSeconds(options.timeout, 300, '--timeout'),
-          pollIntervalMs: parsePositiveSeconds(options.pollInterval, 4, '--poll-interval'),
+          timeoutMs: parsePositiveSeconds(options.timeout, 600, '--timeout'),
+          pollIntervalMs: parsePositiveSeconds(options.pollInterval, 3, '--poll-interval'),
           wait: options.wait !== false,
           onStatus: (status) => spinner.text(status),
         });
@@ -177,11 +205,7 @@ export function registerUploadCommand(cli: CAC): void {
         }
       } catch (error) {
         spinner.fail('Upload failed');
-        if (error instanceof ApiError) {
-          logger.error(`[${error.code}] ${error.message}`);
-        } else {
-          logger.error(error instanceof Error ? error.message : 'Unknown error');
-        }
+        reportError(error);
         process.exit(1);
       }
     });

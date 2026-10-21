@@ -107,8 +107,27 @@ export function getApiKey(config: Config): string | undefined {
 }
 
 /**
- * Get the API URL with fallback to default
+ * PGYER API servers, tried in order. The later ones help when DNS for the main
+ * domain is blocked or hijacked.
+ */
+export const DEFAULT_API_SERVERS: readonly string[] = [
+  'https://www.pgyer.com',
+  'https://www.xcxwo.com',
+  'https://www.pgyerapp.com',
+];
+
+/**
+ * Get the API servers to try: only the configured apiUrl when the user set
+ * one, otherwise the default PGYER domains.
+ */
+export function getApiServers(config: Config): string[] {
+  const custom = config.apiUrl?.trim().replace(/\/+$/, '');
+  return custom ? [custom] : [...DEFAULT_API_SERVERS];
+}
+
+/**
+ * Get the primary API URL
  */
 export function getApiUrl(config: Config): string {
-  return config.apiUrl ?? 'https://api.pgyer.com';
+  return getApiServers(config)[0];
 }

@@ -1,4 +1,6 @@
 import pc from 'picocolors';
+import { ApiError } from '../core/api';
+import { ProcessingTimeoutError } from '../core/upload';
 
 export type OutputMode = 'human' | 'json';
 
@@ -34,8 +36,8 @@ export interface Logger {
   json(data: unknown): void;
   /** Output plain text message */
   text(message: string): void;
-  /** Output error message */
-  error(message: string): void;
+  /** Output error message, with an optional hint on how to fix it */
+  error(message: string, hint?: string): void;
   /** Output table data (only effective in human mode) */
   table(data: Record<string, unknown>[]): void;
   /** Output success message (only effective in human mode) */
@@ -56,11 +58,12 @@ class JsonLogger implements Logger {
     console.log(message);
   }
 
-  error(message: string): void {
+  error(message: string, hint?: string): void {
     const classification = classifyError(message);
     console.error(JSON.stringify({
       error: {
         ...classification,
+        ...(hint ? { hint } : {}),
         message: message.replace(/^\[\d+\]\s*/, ''),
       },
     }));
@@ -103,8 +106,11 @@ function classifyError(message: string): {
       hint: 'Run pgyer auth login or set PGYER_API_KEY',
     };
   }
-  if (/timed out|timeout/i.test(message)) {
+  if (/timed out|timeout|still processing/i.test(message)) {
     return { code: 'TIMEOUT', retryable: true };
+  }
+  if (/could not be reached|is not reachable|non-JSON response|unexpected response/i.test(message)) {
+    return { code: 'NETWORK_ERROR', retryable: true };
   }
   if (/Confirmation requires|use --force/i.test(message)) {
     return { code: 'CONFIRMATION_REQUIRED', retryable: false, hint: 'Review the target and retry with --force' };
@@ -137,8 +143,9 @@ class HumanLogger implements Logger {
     console.log(message);
   }
 
-  error(message: string): void {
+  error(message: string, hint?: string): void {
     console.error(pc.red(`✖ Error: ${message}`));
+    if (hint) console.error(hint);
   }
 
   table(data: Record<string, unknown>[]): void {
@@ -195,6 +202,21 @@ class HumanLogger implements Logger {
 }
 
 /**
+ * Report a failed command on stderr. API errors keep the "[code] message"
+ * form and carry PGYER's hint when there is one.
+ */
+export function reportError(error: unknown): void {
+  const logger = createLogger();
+  if (error instanceof ApiError) {
+    logger.error(`[${error.code}] ${error.message}`, error.hint);
+  } else if (error instanceof ProcessingTimeoutError) {
+    logger.error(error.message, `Run "pgyer uploads wait ${error.buildKey}" to keep waiting`);
+  } else {
+    logger.error(error instanceof Error ? error.message : 'Unknown error');
+  }
+}
+
+/**
  * Create a logger instance based on current mode
  */
 export function createLogger(): Logger {
@@ -210,7 +232,7 @@ export function createLogger(): Logger {
 export const logger = {
   json: (data: unknown) => createLogger().json(data),
   text: (message: string) => createLogger().text(message),
-  error: (message: string) => createLogger().error(message),
+  error: (message: string, hint?: string) => createLogger().error(message, hint),
   table: (data: Record<string, unknown>[]) => createLogger().table(data),
   success: (message: string) => createLogger().success(message),
   info: (message: string) => createLogger().info(message),

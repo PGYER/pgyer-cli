@@ -5,9 +5,8 @@ import { registerAppsCommands } from './commands/apps';
 import { registerUploadCommand } from './commands/upload';
 import { registerVersionCommands } from './commands/versions';
 import { registerUploadStatusCommands } from './commands/uploads';
-
-// Bundled by tsup so the CLI version always matches the published package.
-const { version: VERSION } = require('../package.json') as { version: string };
+import { registerMcpCommand } from './commands/mcp';
+import { CLI_VERSION as VERSION } from './core/version';
 
 /**
  * Create and configure CLI
@@ -55,6 +54,7 @@ async function main() {
   registerUploadCommand(cli);
   registerVersionCommands(cli);
   registerUploadStatusCommands(cli);
+  registerMcpCommand(cli);
 
   // CAC does not natively support git-style nested commands. Internally use a
   // colon while keeping the public interface as `pgyer apps list`.

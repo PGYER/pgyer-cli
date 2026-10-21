@@ -109,7 +109,7 @@ describe('FastUploader', () => {
   it('maps supported package extensions', () => {
     assert.strictEqual(getBuildType('app.ipa'), 'ios');
     assert.strictEqual(getBuildType('app.apk'), 'android');
-    assert.strictEqual(getBuildType('app.hap'), 'harmonyos');
+    assert.strictEqual(getBuildType('app.hap'), 'harmony');
     assert.throws(() => getBuildType('app.zip'), /Unsupported file type/);
   });
 
@@ -179,7 +179,7 @@ describe('FastUploader', () => {
     assert.strictEqual(output.status, 'uploaded');
     assert.strictEqual(output.pending, true);
     assert.strictEqual(output.uploadKey, 'upload-key');
-    assert.match(tokenBody, /buildType=harmonyos/);
+    assert.match(tokenBody, /buildType=harmony(&|$)/);
     assert.match(tokenBody, /oversea=2/);
     assert.match(storageBody, /fake hap bytes/);
     assert.strictEqual(buildChecks, 3, 'CLI --no-wait should skip buildInfo polling');

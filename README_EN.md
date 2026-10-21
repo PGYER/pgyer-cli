@@ -5,7 +5,8 @@
 A modern command-line client for the [PGYER](https://www.pgyer.com/) app
 distribution platform. Upload IPA, APK, and HAP packages through the API 2.0
 fast-upload flow, manage apps and historical builds, and integrate releases
-into CI or AI-agent workflows.
+into CI or AI-agent workflows. A built-in MCP server (`pgyer mcp`) lets AI
+clients such as Claude, Cursor, VS Code and Codex use PGYER directly.
 
 ## Highlights
 
@@ -17,10 +18,12 @@ into CI or AI-agent workflows.
 - Historical build listing, update checks, latest-version controls, and deletion
 - Readable output by default, with explicit JSON for automation
 - Non-interactive safeguards, `--dry-run`, redacted credentials, and stable errors
+- Built-in MCP server for AI clients
+- Automatic fallback to backup PGYER domains when the main one is unreachable
 
 ## Requirements
 
-- Node.js 18 or later
+- Node.js 20.19 or later
 - A PGYER account or API Key
 
 ## Installation
@@ -71,8 +74,8 @@ PGYER to publish the build unless `--no-wait` is specified.
 # Upload with automatic region selection
 pgyer upload ./app.apk
 
-# Prefer domestic upload infrastructure and allow up to 10 minutes
-pgyer upload ./app.hap --upload-region domestic --timeout 600
+# Upload within mainland China and wait up to 15 minutes for processing
+pgyer upload ./app.hap --upload-region domestic --timeout 900
 
 # Add release notes
 pgyer upload ./app.ipa \
@@ -93,11 +96,16 @@ export RELEASE_INSTALL_PASSWORD="replace-with-a-secret"
 pgyer upload ./app.apk --password-env RELEASE_INSTALL_PASSWORD
 
 pgyer upload ./app.apk --invite-install
+pgyer upload ./app.apk --install-type public
 pgyer upload ./app.ipa --pubstart 2026-08-01 --pubend 2026-12-31
 ```
 
 `--pubstart` and `--pubend` must be used together, and the end date must be
 later than the start date.
+
+An upload sends only the settings you give. Without `--install-type`,
+`--password` or `--invite-install`, the app keeps its current install type
+(0.1.x reset it to public); use `--install-type public` to make it public.
 
 ### Upload options
 
@@ -105,6 +113,7 @@ later than the start date.
 | --- | --- |
 | `--description <text>` | Set the app description |
 | `--build-update-description <text>` | Set release notes for this build |
+| `--install-type <type>` | `public`, `password` or `invite`; by default the app keeps its current setting |
 | `--password <password>` | Use password-protected installation |
 | `--password-env [name]` | Read the password from an environment variable; defaults to `PGYER_INSTALL_PASSWORD` |
 | `--invite-install` | Restrict installation to invited users |
@@ -112,12 +121,16 @@ later than the start date.
 | `--pubend <YYYY-MM-DD>` | Set the installation-validity end date |
 | `--short <shortcut>` | Set a channel shortcut |
 | `--upload-region <region>` | Select `auto`, `domestic`, or `overseas`; defaults to `auto` |
-| `--timeout <seconds>` | Set the total upload and processing timeout; defaults to `300` |
-| `--poll-interval <seconds>` | Set the build-processing poll interval; defaults to `4` |
+| `--timeout <seconds>` | How long to wait for PGYER to process the build after the file is uploaded; defaults to `600` |
+| `--poll-interval <seconds>` | Set the build-processing poll interval; defaults to `3` |
 | `--no-wait` | Return after storage upload without waiting for PGYER processing |
 
 The legacy `--app-key` upload option is not supported by fast upload. PGYER
 associates the uploaded package with an app using its package identifier.
+
+The file transfer itself has no overall time limit; it is aborted only when no
+data moves for 5 minutes. If processing takes longer than `--timeout`, the
+error shows the build key, and `pgyer uploads wait <key>` keeps waiting.
 
 ## Asynchronous Uploads
 
@@ -136,12 +149,88 @@ pgyer uploads status "$UPLOAD_KEY" --json
 # Poll until published or timed out
 pgyer uploads wait "$UPLOAD_KEY" \
   --timeout 600 \
-  --poll-interval 4 \
+  --poll-interval 3 \
   --json
 ```
 
 `uploads status` performs one request. `uploads wait` polls until PGYER
 publishes the build or the configured timeout expires.
+
+## AI Clients (MCP)
+
+`pgyer mcp` starts an [MCP](https://modelcontextprotocol.io) server on stdio,
+so AI clients can upload packages and look up apps and versions. It
+authenticates like the CLI: `PGYER_API_KEY` first, then the credentials saved
+by `pgyer auth login`. Get an API key from the
+[PGYER API page](https://www.pgyer.com/account/api).
+
+The snippets below run `npx -y @pgyer/cli mcp`, which needs no installation.
+With the CLI installed globally and logged in, you can use `pgyer mcp` instead
+and leave out `PGYER_API_KEY`. Existing configurations that run
+`npx -y pgyer-mcp-server` start the same server and keep working.
+
+**Claude Code**
+
+```bash
+claude mcp add pgyer --env PGYER_API_KEY=<your_api_key> -- npx -y @pgyer/cli mcp
+```
+
+**Claude Desktop** (`claude_desktop_config.json`) and **Cursor** (`~/.cursor/mcp.json` or `.cursor/mcp.json` in a project)
+
+```json
+{
+  "mcpServers": {
+    "pgyer": {
+      "command": "npx",
+      "args": ["-y", "@pgyer/cli", "mcp"],
+      "env": { "PGYER_API_KEY": "<your_api_key>" }
+    }
+  }
+}
+```
+
+**VS Code** (`.vscode/mcp.json`; prompts for the API key on start)
+
+```json
+{
+  "inputs": [
+    { "type": "promptString", "id": "pgyer-api-key", "description": "PGYER API Key", "password": true }
+  ],
+  "servers": {
+    "pgyer": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@pgyer/cli", "mcp"],
+      "env": { "PGYER_API_KEY": "${input:pgyer-api-key}" }
+    }
+  }
+}
+```
+
+**Codex** (`~/.codex/config.toml`; raise the default 60-second tool timeout for large uploads)
+
+```toml
+[mcp_servers.pgyer]
+command = "npx"
+args = ["-y", "@pgyer/cli", "mcp"]
+env = { PGYER_API_KEY = "<your_api_key>" }
+tool_timeout_sec = 900
+```
+
+### MCP tools
+
+| Tool | What it does | Read-only | Overwrites state |
+| --- | --- | --- | --- |
+| `upload_app` | Uploads an .apk/.ipa/.hap and returns the download page and QR code; takes every upload setting and sends progress notifications | No | No |
+| `get_upload_status` | Checks a build by its buildKey (after a processing timeout) | Yes | No |
+| `list_apps` | Lists apps, page by page | Yes | No |
+| `get_app` | Gets an app's details by appKey or shortcut | Yes | No |
+| `list_versions` | Lists an app's versions, page by page | Yes | No |
+| `set_latest_version` | Sets or removes the latest-version mark | No | Yes |
+| `update_app_settings` | Changes the shortcut, install type, install period, page language and more; other settings stay as they are | No | Yes |
+
+The MCP server has no delete tools and never returns install passwords. Only
+MCP messages go to stdout; diagnostics go to stderr.
 
 ## Command Reference
 
@@ -281,6 +370,15 @@ The CLI sets this file to mode `600` where supported. Tokens are redacted by
 default, installation passwords can be read from environment variables, and
 sensitive values are not included in normal success or error output.
 
+The API key is sent only in POST request bodies, never in a URL. The CLI uses
+`https://www.pgyer.com`, then `https://www.xcxwo.com`, then
+`https://www.pgyerapp.com`, moving on only after a network error or a non-JSON
+answer (such as a hijacked DNS page). To always use another address, set
+`"apiUrl"` in the configuration file; the CLI then uses only that address.
+
+Every request carries a `pgyer-cli/<version> Node/<version>` User-Agent;
+requests made by `pgyer mcp` start with `pgyer-mcp-server/<version>`.
+
 ## Development
 
 ```bash
@@ -290,7 +388,8 @@ npm test
 npm run build
 ```
 
-The packaged executable is generated at `dist/index.js`.
+The packaged executable is generated at `dist/index.js`; the MCP server entry
+point (`@pgyer/cli/mcp`) is `dist/mcp.js`.
 
 ## Documentation
 
