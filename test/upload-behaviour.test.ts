@@ -438,7 +438,8 @@ describe('pgyer upload command', () => {
       assert.strictEqual(error.message, 'Storage is full');
       assert.strictEqual(error.hint, 'Your PGYER storage is full or the file is too large. Free up space or upgrade your plan.');
 
-      const human = await runCli(['upload', apkPath], { PGYER_API_KEY: '' });
+      // NO_COLOR: picocolors colours its output when CI is set, which splits the error line.
+      const human = await runCli(['upload', apkPath], { PGYER_API_KEY: '', NO_COLOR: '1' });
       assert.notStrictEqual(human.code, 0);
       assert.match(human.stderr, /\[1022\] Storage is full\nYour PGYER storage is full/);
     } finally {
