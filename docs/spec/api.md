@@ -2,110 +2,48 @@
 
 ## 基础配置
 
-**Base URL**: `https://api.pgyer.com`
+**API 服务器**：未配置 `apiUrl` 时依次尝试：
 
-**认证方式**: 请求参数携带 `_api_key`
+1. `https://www.pgyer.com`
+2. `https://www.xcxwo.com`
+3. `https://www.pgyerapp.com`
+
+只有网络错误（连接失败、超时、DNS 失败）或非 JSON 响应（劫持页、代理错误页、缺少 `code` 字段）才切换到下一个域名；返回 JSON 的 API 错误（`code != 0`）立即失败，不再尝试其他域名。某个域名成功后，同一进程内的后续请求优先使用它。配置文件中设置了 `apiUrl` 时只使用该地址，不做切换。
+
+**认证方式**：`_api_key` 只放在 POST 表单正文中，任何请求都不得把 API Key 放进 URL（URL 会进入访问日志）。
+
+**User-Agent**：每个请求（API 与 COS 上传）都带 User-Agent：CLI 为 `pgyer-cli/<version> Node/<process.version>`；`pgyer mcp` 为 `pgyer-mcp-server/<version> pgyer-cli/<version> Node/<process.version>`。
+
+**超时**：单个 API 请求 30 秒；不跟随重定向（3xx 视为非 JSON 响应）。
 
 ## 请求封装
 
 ```typescript
 // core/api.ts
 interface RequestOptions {
-  method: 'GET' | 'POST';
+  /** 兼容保留：所有请求都以 POST 表单发送 */
+  method?: 'GET' | 'POST';
   path: string;
   params?: Record<string, unknown>;
-  body?: FormData | Record<string, unknown>;
+  body?: Record<string, unknown>;
+  signal?: AbortSignal;
 }
 
 class ApiClient {
-  private baseUrl: string;
-  private apiKey: string | null;
+  constructor(config: Config, options?: { userAgent?: string; servers?: string[] });
 
-  async request<T>(options: RequestOptions): Promise<T> {
-    const url = new URL(this.baseUrl + options.path);
-
-    // 构建请求参数，注入 _api_key
-    const params = { ...options.params };
-    if (this.apiKey) {
-      params._api_key = this.apiKey;
-    }
-
-    // GET 请求：参数附加到 URL
-    if (options.method === 'GET') {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          url.searchParams.append(key, String(value));
-        }
-      });
-    }
-
-    const fetchOptions: RequestInit = { method: options.method };
-
-    // POST 请求处理
-    if (options.method === 'POST') {
-      if (options.body instanceof FormData) {
-        // FormData: 直接添加 _api_key 到 FormData
-        if (this.apiKey) {
-          options.body.append('_api_key', this.apiKey);
-        }
-        fetchOptions.body = options.body;
-      } else {
-        // 非 FormData: 转换为 URLSearchParams (application/x-www-form-urlencoded)
-        const formParams = new URLSearchParams();
-        if (this.apiKey) {
-          formParams.append('_api_key', this.apiKey);
-        }
-        // 合并 params 和 body 到表单参数
-        for (const source of [options.params, options.body]) {
-          if (source) {
-            Object.entries(source).forEach(([key, value]) => {
-              if (value !== undefined && value !== null) {
-                formParams.append(key, String(value));
-              }
-            });
-          }
-        }
-        fetchOptions.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
-        fetchOptions.body = formParams.toString();
-      }
-    }
-
-    const response = await fetch(url.toString(), fetchOptions);
-    return this.handleResponse<T>(response);
-  }
-
-  private async handleResponse<T>(response: Response): Promise<T> {
-    const data = await response.json();
-
-    if (data.code !== 0) {
-      throw new ApiError(data.code, data.message);
-    }
-
-    return data.data;
-  }
+  /** 依次尝试 API 服务器，返回 data */
+  request<T>(options: RequestOptions): Promise<T>;
+  /** 同上，同时返回成功的服务器（上传轮询沿用该服务器） */
+  requestWithServer<T>(options: RequestOptions): Promise<{ server: string; data: T }>;
+  /** 只请求指定服务器，不切换 */
+  requestAt<T>(server: string, options: RequestOptions): Promise<T>;
 }
 ```
 
-## 错误处理
-
-```typescript
-class ApiError extends Error {
-  constructor(public code: number, message: string) {
-    super(message);
-    this.name = 'ApiError';
-  }
-}
-```
-
-**输出格式**:
-
-```bash
-# 默认模式
-Error: [10001] Invalid API Key
-
-# --human 模式
-✖ Error: [10001] Invalid API Key
-```
+- 请求体为 `application/x-www-form-urlencoded`：`_api_key` + `params` + `body`，忽略 `undefined`/`null`
+- 响应 `code` 可能是字符串或数字，统一按数字比较
+- 网络错误与非 JSON 响应抛出 `NetworkError`；`code != 0` 抛出 `ApiError`
 
 ## API 接口
 
@@ -188,26 +126,26 @@ Response:
 ```
 POST /apiv2/app/getCOSToken
 POST <response.data.endpoint>
-GET /apiv2/app/buildInfo
+POST /apiv2/app/buildInfo
 ```
 
-第一步参数：
+第一步参数（可选参数只在用户设置时发送）：
 
 - _api_key: string
-- buildType: ios | android | harmonyos
-- oversea: 1 | 2 (optional)
+- buildType: ios | android | harmony
+- oversea: 1 | 2 (optional, 1=海外，2=国内；不设置时不发送，由服务器按 IP 判断)
+- buildDescription: string (optional, 应用介绍)
 - buildUpdateDescription: string (optional)
-- buildInstallType: number (optional, 1=公开 2=密码 3=邀请)
+- buildInstallType: number (optional, 1=公开 2=密码 3=邀请；不设置时不发送，蒲公英保留应用当前设置；只设置密码时发送 2)
 - buildPassword: string (optional, buildInstallType=2 时需要)
-- buildInstallDate: string (optional, "1" 表示设置有效期)
+- buildInstallDate: string (optional, 开始和结束日期同时设置时发送 "1")
 - buildInstallStartDate: string (optional, 格式 YYYY-MM-DD)
 - buildInstallEndDate: string (optional, 格式 YYYY-MM-DD)
 - buildChannelShortcut: string (optional, 渠道短链接)
 
-第二步使用动态 endpoint、签名参数和文件流上传，成功响应为 HTTP 204。
+第二步使用动态 endpoint 与 `params` 中的全部字段、`x-cos-meta-file-name` 和文件流上传，任何 2xx 响应都视为成功。
 
-第三步使用第一步返回的 `key` 作为 `buildKey`。`code=1247` 表示正在发布并继续轮询，`code=0` 返回最终 App 信息。
-```
+第三步向获取凭证成功的同一服务器 POST `_api_key` 与 `buildKey`（第一步返回的 `key`）。`code=1246`/`1247` 表示正在处理并继续轮询，`code=0` 返回最终 App 信息。
 
 ### 删除 App
 

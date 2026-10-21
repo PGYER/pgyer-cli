@@ -49,11 +49,12 @@ pgyer uploads status <uploadKey> --json
 pgyer uploads wait <uploadKey> --timeout 600 --json
 ```
 
-`status` 只查询一次；解析中返回 `status=pending`。`wait` 按轮询间隔等待成功、失败或超时。
+`status` 只查询一次；解析中返回 `status=pending`。`wait` 按轮询间隔（默认 3 秒）等待成功、失败或超时（默认 600 秒）；等待期间的网络错误会重试到超时为止。
 
 ## 密钥与密码
 
 - API Key 推荐通过 `PGYER_API_KEY` 注入
 - 安装密码推荐通过 `--password-env <name>` 读取，默认变量为 `PGYER_INSTALL_PASSWORD`
 - `auth token` 默认只显示脱敏 Token；完整值要求显式 `--reveal`
-- 成功、错误和调试输出不得包含 API Key 或安装密码
+- 成功、错误和调试输出不得包含 API Key、安装密码、COS 签名或临时凭证
+- API Key 只放在 POST 正文中，不得出现在任何 URL 里

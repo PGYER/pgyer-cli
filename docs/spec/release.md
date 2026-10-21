@@ -35,7 +35,7 @@ push 到 `main` 或提交针对 `main` 的 Pull Request 时执行质量检查，
 
 1. 修改 `package.json` 和 `package-lock.json` 中的 `version`
 2. 提交并 push 到 `main`，等待 CI 通过
-3. 创建与版本一致的标签，例如 `v0.1.5`
+3. 创建与版本一致的标签，例如 `v0.2.0`
 4. 推送标签，GitHub Actions 自动构建并发布
 
 ## 依赖与构建
@@ -43,7 +43,11 @@ push 到 `main` 或提交针对 `main` 的 Pull Request 时执行质量检查，
 - 依赖安装: `npm ci`（基于 `package-lock.json`）
 - 类型检查: `npm run typecheck`
 - 测试: `npm test`（使用 GitHub Runner 的隔离临时主目录）
-- 构建: `tsup`（`npm run build`），产物在 `dist/`
+- 构建: `tsup`（`npm run build`），产物在 `dist/`：`index.js`（CLI）与 `mcp.js`（`@pgyer/cli/mcp` 导出，供 `pgyer-mcp-server` 调用）
 - 包冒烟测试: `npm pack` 后隔离安装，验证 CLI 版本与帮助输出
 - 每次 push、Pull Request、标签和手动触发都会执行上述质量检查；只有标签或手动触发且 npm 上不存在当前版本时才发布
 - 发布前 `prepublishOnly` 钩子也会触发构建（双重保障）
+
+## pgyer-mcp-server
+
+`pgyer-mcp-server` 2.x 依赖 `@pgyer/cli` 并调用 `@pgyer/cli/mcp`。先发布 `@pgyer/cli`，再发布 `pgyer-mcp-server` 并更新 MCP Registry（步骤见该仓库 README）。
