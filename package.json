@@ -1,6 +1,6 @@
 {
   "name": "@pgyer/cli",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "CLI and MCP server for the PGYER app distribution platform",
   "keywords": [
     "pgyer",
@@ -16,6 +16,14 @@
   ],
   "author": "PGYER Team",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PGYER/pgyer-cli.git"
+  },
+  "homepage": "https://github.com/PGYER/pgyer-cli#readme",
+  "bugs": {
+    "url": "https://github.com/PGYER/pgyer-cli/issues"
+  },
   "type": "commonjs",
   "bin": {
     "pgyer": "dist/index.js"
